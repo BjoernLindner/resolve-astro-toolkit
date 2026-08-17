@@ -1,0 +1,181 @@
+// =====================================================================
+//  AstroStretch.dctl  ·  v1.0
+//  Nichtlineares Astro-Stretching fuer DaVinci Resolve Studio 18+
+//
+//  Ruestet Resolve die beiden Stretch-Funktionen nach, die in der
+//  Astrofotografie Standard sind und die Resolve nativ nicht hat:
+//
+//    Arcsinh   y = asinh(s*x) / asinh(s)
+//              Hebt schwache Signale stark an, komprimiert die Lichter
+//              sanft. Erhaelt Kanalverhaeltnisse deutlich besser als
+//              eine Gammakurve -> Sterne behalten ihre Farbe statt
+//              weiss auszubrennen. Der klassische erste Stretch.
+//
+//    MTF       y = ((m-1)*x) / ((2m-1)*x - m)
+//              Midtone Transfer Function (PixInsight-Histogramm-
+//              Transformation). Praeziser steuerbar, aber tendenziell
+//              sternaufblaehend. Gut fuer den zweiten, feinen Stretch.
+//
+//  WICHTIG - Farbraum:
+//  Beide Funktionen setzen LINEARE, szenenbezogene Daten voraus.
+//  Auf Log-Daten (DaVinci Intermediate, S-Log, N-Log) ist die Mathematik
+//  falsch. Entweder:
+//    a) Timeline Working Space = DaVinci Wide Gamut / Linear, oder
+//    b) Node davor: CST DaVinci Intermediate -> Linear
+//       Node danach: CST Linear -> DaVinci Intermediate
+//
+//  INSTALLATION:
+//  1. Project Settings -> Color Management -> "Open LUT Folder"
+//  2. Diese Datei dort ablegen (gerne in einen Unterordner "Astro")
+//  3. Im LUT-Browser bzw. Color Management auf "Update Lists" klicken
+//  4. Anwenden: OpenFX-Panel -> "DCTL" auf einen Node ziehen,
+//     im Inspector "AstroStretch" waehlen.
+//     (Der Weg per Rechtsklick auf den Node -> LUT funktioniert hier
+//      NICHT, weil dieses DCTL Regler hat - dafuer braucht es den
+//      DCTL-OFX-Node.)
+//  5. Nach jedem Speichern reicht "Update Lists" fuer einen Live-Reload.
+//
+//  BEDIENUNG - empfohlene Reihenfolge:
+//  1. Schwarzpunkt: langsam hochziehen, bis der Himmelshintergrund
+//     dunkel wird - aber NICHT bis er clippt. Ziel ist ein Hintergrund
+//     bei ca. 8-15 %, nie 0. Die Anzeige "Clip Warnung" hilft.
+//  2. Stretch: hochziehen, bis die Milchstrasse sichtbar wird.
+//     Lieber zwei sanfte Nodes hintereinander als ein aggressiver.
+//  3. Farbe erhalten: auf 1.0 lassen. Auf 0 gedreht wird pro Kanal
+//     gestretcht - heller, aber Sternfarben bleichen aus.
+//  4. Lichterschutz: nur anfassen, wenn Sternkerne ausbrennen.
+// =====================================================================
+
+DEFINE_UI_PARAMS(mode,        Modus,             DCTLUI_COMBO_BOX,     0, {M_ASINH, M_MTF}, {Arcsinh, MTF Midtone})
+DEFINE_UI_PARAMS(stretch,     Stretch (Arcsinh), DCTLUI_SLIDER_FLOAT,  25.0f,  1.0f, 1000.0f, 0.5f)
+DEFINE_UI_PARAMS(midtone,     Midtone (MTF),     DCTLUI_SLIDER_FLOAT,   0.25f, 0.005f, 0.5f,  0.001f)
+DEFINE_UI_PARAMS(blackpoint,  Schwarzpunkt,      DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.25f,  0.0002f)
+DEFINE_UI_PARAMS(shadowlift,  Sockel (Anti-Clip),DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.15f,  0.001f)
+DEFINE_UI_PARAMS(preserve,    Farbe erhalten,    DCTLUI_SLIDER_FLOAT,   1.0f,  0.0f,  1.0f,   0.01f)
+DEFINE_UI_PARAMS(hiprotect,   Lichterschutz,     DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  1.0f,   0.01f)
+DEFINE_UI_PARAMS(clipwarn,    Clip Warnung,      DCTLUI_CHECK_BOX,      0)
+DEFINE_UI_PARAMS(clampout,    Ausgabe begrenzen, DCTLUI_CHECK_BOX,      1)
+DEFINE_UI_PARAMS(bypass,      Bypass,            DCTLUI_CHECK_BOX,      0)
+
+
+// ---------------------------------------------------------------------
+//  Arcsinh-Stretch, als Multiplikator ausgedrueckt.
+//  Rueckgabe k mit  y = k * x.  Fuer x -> 0 ist der Grenzwert s/asinh(s).
+// ---------------------------------------------------------------------
+__DEVICE__ float asinh_factor(float x, float s)
+{
+    float d = _asinhf(s);
+    if (d < 1e-8f) return 1.0f;
+    if (x < 1e-7f) return s / d;
+    return _asinhf(s * x) / (x * d);
+}
+
+// ---------------------------------------------------------------------
+//  Midtone Transfer Function (PixInsight), als Multiplikator.
+//  m = 0.5 ist die Identitaet, kleinere Werte hellen auf.
+// ---------------------------------------------------------------------
+__DEVICE__ float mtf_factor(float x, float m)
+{
+    float mm = _clampf(m, 0.0005f, 0.9995f);
+    if (_fabs(mm - 0.5f) < 1e-6f) return 1.0f;
+    if (x < 1e-7f) return (mm - 1.0f) / (-mm);
+    float num = (mm - 1.0f) * x;
+    float den = (2.0f * mm - 1.0f) * x - mm;
+    if (_fabs(den) < 1e-8f) return 1.0f;
+    return (num / den) / x;
+}
+
+__DEVICE__ float stretch_factor(float x, int md, float s, float m)
+{
+    return (md == 0) ? asinh_factor(x, s) : mtf_factor(x, m);
+}
+
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
+                            float p_R, float p_G, float p_B)
+{
+    float r = p_R;
+    float g = p_G;
+    float b = p_B;
+
+    if (bypass) return make_float3(r, g, b);
+
+    // ---- 1. Schwarzpunkt abziehen und neu skalieren -------------------
+    float bp  = _clampf(blackpoint, 0.0f, 0.995f);
+    float inv = 1.0f / (1.0f - bp);
+
+    float r0 = _fmaxf((r - bp) * inv, 0.0f);
+    float g0 = _fmaxf((g - bp) * inv, 0.0f);
+    float b0 = _fmaxf((b - bp) * inv, 0.0f);
+
+    // Merker, ob dieses Pixel durch den Schwarzpunkt vollstaendig
+    // auf Null gedrueckt wurde -> das ist echter Informationsverlust.
+    int clipped = (r0 <= 0.0f && g0 <= 0.0f && b0 <= 0.0f) ? 1 : 0;
+
+    // ---- 2. Stretch ---------------------------------------------------
+    // Rec.709-Luminanz. In DWG leicht daneben, fuer die Gewichtung
+    // eines Helligkeits-Multiplikators aber vollkommen ausreichend.
+    float lum = 0.2126f * r0 + 0.7152f * g0 + 0.0722f * b0;
+
+    // Variante A: Multiplikator aus der Luminanz -> Kanalverhaeltnisse
+    //             und damit Sternfarben bleiben erhalten.
+    float kl = stretch_factor(lum, mode, stretch, midtone);
+
+    // Variante B: jeder Kanal einzeln -> heller, aber entfaerbt.
+    float kr = stretch_factor(r0, mode, stretch, midtone);
+    float kg = stretch_factor(g0, mode, stretch, midtone);
+    float kb = stretch_factor(b0, mode, stretch, midtone);
+
+    float w = _clampf(preserve, 0.0f, 1.0f);
+    float mr = kl * w + kr * (1.0f - w);
+    float mg = kl * w + kg * (1.0f - w);
+    float mb = kl * w + kb * (1.0f - w);
+
+    float r1 = r0 * mr;
+    float g1 = g0 * mg;
+    float b1 = b0 * mb;
+
+    // ---- 3. Lichterschutz --------------------------------------------
+    // Blendet den Stretch in den obersten Tonwerten wieder zum
+    // Originalwert zurueck. Haelt Sternkerne klein und farbig,
+    // statt sie zu weissen Scheiben aufzublaehen.
+    float hp = _clampf(hiprotect, 0.0f, 1.0f);
+    if (hp > 0.0f)
+    {
+        float thr = 1.0f - 0.9f * hp;           // Einsatzpunkt
+        float t   = _clampf((lum - thr) / _fmaxf(1.0f - thr, 1e-4f), 0.0f, 1.0f);
+        float s   = t * t * (3.0f - 2.0f * t);  // smoothstep
+        s *= hp;
+        r1 = r1 * (1.0f - s) + r0 * s;
+        g1 = g1 * (1.0f - s) + g0 * s;
+        b1 = b1 * (1.0f - s) + b0 * s;
+    }
+
+    // ---- 4. Sockel ----------------------------------------------------
+    // Hebt das Gesamtbild leicht an, damit der Himmelshintergrund
+    // ueber Null bleibt. Gegen abgesoffene Schatten im Druck und
+    // gegen Banding in dunklen Flaechen.
+    float sl = _clampf(shadowlift, 0.0f, 0.5f);
+    if (sl > 0.0f)
+    {
+        float k = 1.0f - sl;
+        r1 = r1 * k + sl;
+        g1 = g1 * k + sl;
+        b1 = b1 * k + sl;
+    }
+
+    // ---- 5. Clip-Warnung ---------------------------------------------
+    // Faerbt Pixel rot, deren Information der Schwarzpunkt vernichtet
+    // hat. Zum Einstellen anschalten, vor dem Rendern ausschalten.
+    if (clipwarn && clipped)
+        return make_float3(1.0f, 0.0f, 0.0f);
+
+    if (clampout)
+    {
+        r1 = _clampf(r1, 0.0f, 1.0f);
+        g1 = _clampf(g1, 0.0f, 1.0f);
+        b1 = _clampf(b1, 0.0f, 1.0f);
+    }
+
+    return make_float3(r1, g1, b1);
+}

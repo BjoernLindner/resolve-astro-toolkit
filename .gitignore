@@ -1,0 +1,38 @@
+# Betriebssystem
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editoren
+.vscode/
+.idea/
+*.swp
+*~
+
+# Resolve / Fusion Arbeitsdateien
+*.drp
+*.drt
+*.drx
+*.log
+
+# Grosse Bilddaten gehoeren nicht ins Repo.
+# Beispielbilder in examples/ bitte als kleine JPEG/PNG-Ausschnitte
+# committen, nicht als Originale.
+*.tif
+*.tiff
+*.exr
+*.dpx
+*.fit
+*.fits
+*.xisf
+*.nef
+*.arw
+*.cr2
+*.cr3
+*.raf
+*.rw2
+*.dng
+
+# Ausnahme: bewusst klein gehaltene Beispieldateien
+!examples/**/*.png
+!examples/**/*.jpg

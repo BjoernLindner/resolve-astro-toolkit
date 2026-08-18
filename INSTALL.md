@@ -1,88 +1,88 @@
 # Installation
 
-## Voraussetzungen
+## Requirements
 
-- **DaVinci Resolve Studio 18 oder neuer.** DCTL-Unterstützung ist Studio-exklusiv — die kostenlose Version hat weder einen DCTL-Eintrag im LUT-Menü noch den DCTL-OFX-Node.
-- Eine GPU, die Resolve unterstützt. Die DCTLs werden je nach Plattform nach CUDA, OpenCL oder Metal übersetzt.
+- **DaVinci Resolve Studio 18 or newer.** DCTL support is Studio-only — the free edition has neither a DCTL entry in the LUT menu nor the DCTL OFX node.
+- A GPU that Resolve supports. The DCTLs are translated to CUDA, OpenCL or Metal depending on the platform.
 
 ---
 
-## DCTLs installieren
+## Installing the DCTLs
 
-### 1. Den LUT-Ordner finden
+### 1. Find the LUT folder
 
-Der verlässlichste Weg führt über Resolve selbst:
+The most reliable route goes through Resolve itself:
 
 > **Project Settings → Color Management → "Open LUT Folder"**
 
-Das öffnet den richtigen Ordner im Dateimanager. Die Pfade lauten normalerweise:
+That opens the correct folder in your file manager. The paths are normally:
 
-| System | Pfad |
+| System | Path |
 |---|---|
 | Windows | `C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\LUT\` |
 | macOS | `/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/` |
 | Linux | `/home/resolve/LUT/` |
 
-### 2. Dateien ablegen
+### 2. Drop the files in
 
-Lege dort einen Unterordner `Astro` an und kopiere die `.dctl`-Dateien hinein. Der Unterordner ist optional, hält die Liste im Inspector aber übersichtlich.
+Create a subfolder `Astro` there and copy the `.dctl` files into it. The subfolder is optional, but it keeps the list in the Inspector readable.
 
-### 3. Listen aktualisieren
+### 3. Update the lists
 
-Im selben Dialog auf **"Update Lists"** klicken. Ein Resolve-Neustart ist nicht nötig — das gilt auch nach jeder Änderung an einer `.dctl`-Datei, was den Entwicklungszyklus sehr angenehm macht.
+Click **"Update Lists"** in the same dialog. A Resolve restart is not needed — that also holds after every edit to a `.dctl` file, which makes the development cycle very pleasant.
 
-### 4. Anwenden
+### 4. Apply
 
-> ⚠️ **Der häufigste Stolperstein:** Rechtsklick auf einen Node → *LUT* → DCTL funktioniert bei diesen Dateien **nicht**. Dieser Weg ist für DCTLs ohne Bedienelemente gedacht und kann keine Reglerwerte übergeben.
+> ⚠️ **The most common stumbling block:** right-click a node → *LUT* → DCTL does **not** work with these files. That path is meant for DCTLs without controls and cannot pass slider values.
 
-Der richtige Weg:
+The correct route:
 
-1. Color Page, einen Node auswählen (oder neu anlegen)
-2. **OpenFX-Panel** öffnen (Symbol oben rechts)
-3. Unter *ResolveFX Color* den Effekt **"DCTL"** auf den Node ziehen
-4. Im Inspector unter *DCTL List* die gewünschte Datei auswählen
+1. Color page, select a node (or create one)
+2. Open the **OpenFX panel** (icon at the top right)
+3. Under *ResolveFX Color*, drag the **"DCTL"** effect onto the node
+4. In the Inspector, pick the file you want under *DCTL List*
 
-Die Regler erscheinen dann direkt darunter im Inspector.
+The sliders then appear directly below it in the Inspector.
 
-### Wenn nichts auftaucht
+### If nothing shows up
 
-- Pfad prüfen — der Ordner muss der sein, den "Open LUT Folder" öffnet
-- Dateiendung prüfen: `.dctl`, nicht `.dctl.txt` (Windows blendet bekannte Endungen aus)
-- Resolve einmal neu starten
-- In den Preferences unter *General → LUT Locations* nachsehen, ob ein abweichender Ordner konfiguriert ist
+- Check the path — the folder has to be the one "Open LUT Folder" opens
+- Check the file extension: `.dctl`, not `.dctl.txt` (Windows hides known extensions)
+- Restart Resolve once
+- Look under *Preferences → General → LUT Locations* to see whether a different folder is configured
 
 ---
 
-## Farbmanagement
+## Colour management
 
-Das ist kein optionales Detail. **Der Stretch rechnet mit szenenlinearen Daten.** Auf Log-Daten wie DaVinci Intermediate, S-Log oder N-Log ist die Mathematik schlicht falsch — das Ergebnis sieht dann flau und in den Mitten seltsam aus, ohne dass sofort klar wird, warum.
+This is not an optional detail. **The stretch operates on scene-linear data.** On log data such as DaVinci Intermediate, S-Log or N-Log the maths is simply wrong — the result then looks flat and odd in the midtones, without it being immediately obvious why.
 
-Zwei Wege:
+Two ways to get there:
 
-### Weg A — bequem
+### Route A — convenient
 
 > Project Settings → Color Management
 > - Color Science: **DaVinci YRGB Color Managed**
 > - Timeline Color Space: **DaVinci WG / Linear**
 
-### Weg B — kontrolliert (empfohlen zum Lernen)
+### Route B — controlled (recommended while learning)
 
 > Project Settings → Color Management → Color Science: **DaVinci YRGB**
 
-Und die Farbraumwechsel explizit als Nodes in die Kette bauen:
+and build the colour space changes explicitly into the chain as nodes:
 
 ```
-Node 1   Color Space Transform   Kamera/Input  →  DaVinci WG / Linear
+Node 1   Color Space Transform   camera/input  →  DaVinci WG / Linear
 Node 2   DCTL: AstroStretch
-Node 3   ... weiteres Grading ...
+Node 3   ... further grading ...
 Node n   Color Space Transform   DaVinci WG / Linear  →  Adobe RGB
 ```
 
-Mehr Nodes, aber du siehst an jeder Stelle, in welchem Zustand die Daten sind. Für ein Projekt, bei dem die Reihenfolge über das Ergebnis entscheidet, ist das die bessere Wahl.
+More nodes, but you can see at every point what state the data is in. For a project where the order decides the result, that is the better choice.
 
-### Alternativ: nur um den Stretch herum
+### Alternatively: just around the stretch
 
-Wenn du ansonsten in DaVinci Intermediate arbeiten willst, reicht es, den Stretch einzuklammern:
+If you want to work in DaVinci Intermediate otherwise, bracketing the stretch is enough:
 
 ```
 CST: DaVinci Intermediate → Linear
@@ -92,29 +92,29 @@ CST: Linear → DaVinci Intermediate
 
 ---
 
-## Fusion-Makros installieren
+## Installing the Fusion macros
 
-*(Sobald die Makros verfügbar sind.)*
+*(Once the macros are available.)*
 
-Makros sind `.setting`-Dateien und gehören in den Macros-Ordner:
+Macros are `.setting` files and belong in the Macros folder:
 
-| System | Pfad |
+| System | Path |
 |---|---|
 | Windows | `C:\ProgramData\Blackmagic Design\DaVinci Resolve\Fusion\Macros\` |
 | macOS | `/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Macros/` |
 | Linux | `/opt/resolve/Fusion/Macros/` |
 
-Nach einem Resolve-Neustart erscheinen sie in der Fusion Page unter **Effects Library → Tools → Macros**.
+After a Resolve restart they appear on the Fusion page under **Effects Library → Tools → Macros**.
 
 ---
 
-## Auflösung — wichtig für Großformatdruck
+## Resolution — important for large-format print
 
-Nodes auf der Color Page rechnen in **Timeline-Auflösung**, nicht in Quellauflösung. Wenn deine Timeline auf HD steht und dein Bild 45 Megapixel hat, modellierst du Gradienten auf einem heruntergerechneten Bild und skalierst das Ergebnis wieder hoch.
+Nodes on the Color page operate at **timeline resolution**, not at source resolution. If your timeline is set to HD and your image has 45 megapixels, you are modelling gradients on a downscaled image and scaling the result back up.
 
-Zwei Lösungen:
+Two solutions:
 
-- **Photo Page (Resolve 21)** — verarbeitet an der Quellauflösung, unabhängig von der Timeline. Der bequeme Weg.
-- **Timeline-Auflösung manuell** auf die volle Sensorauflösung setzen (Project Settings → Master Settings → Timeline Resolution → Custom).
+- **Photo page (Resolve 21)** — processes at source resolution, independent of the timeline. The convenient route.
+- **Set the timeline resolution manually** to the full sensor resolution (Project Settings → Master Settings → Timeline Resolution → Custom).
 
-In **Fusion** gilt eine eigene Regel: ein **einzelner Clip** läuft in voller Quellauflösung, ein **Fusion Clip** dagegen in Timeline-Auflösung. Für hochauflösende Arbeit also nie einen Fusion Clip anlegen.
+In **Fusion** a separate rule applies: a **single clip** runs at full source resolution, whereas a **Fusion clip** runs at timeline resolution. So never create a Fusion clip for high-resolution work.

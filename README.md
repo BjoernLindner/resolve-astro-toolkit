@@ -66,6 +66,10 @@ Print
 
 The long version, including where in the node tree each tool belongs and why the order matters, is in [docs/workflow.md](docs/workflow.md).
 
+## Contributing
+
+Way of working, commit format and the licensing constraint are in [CONTRIBUTING.md](CONTRIBUTING.md). Open points are tracked as [issues](https://github.com/BjoernLindner/resolve-astro-toolkit/issues).
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE).

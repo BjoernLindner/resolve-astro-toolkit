@@ -1,0 +1,39 @@
+name: Task
+description: A piece of planned work on the toolkit
+labels: []
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should exist afterwards that does not exist now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Implementation steps
+      description: The route, as concretely as it is already known. Node-by-node instructions and measured starting values belong here, so the work does not need re-deriving later.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkboxes that decide when this is done.
+      value: |
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Issues that have to be finished first.
+      placeholder: "#1, #2"
+    validations:
+      required: false

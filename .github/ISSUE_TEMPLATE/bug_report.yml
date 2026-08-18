@@ -1,0 +1,89 @@
+name: Bug report
+description: Something in the toolkit behaves incorrectly in Resolve
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: if the image looks flat, washed out or odd in the midtones, check the working colour space first. The stretch maths assumes scene-linear data — on log data it is simply wrong. That is by far the most common cause of "it looks broken".
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Affected tool
+      options:
+        - AstroStretch (DCTL)
+        - AstroSCNR (DCTL)
+        - AstroGradient (Fusion macro)
+        - AstroStarReduce (Fusion macro)
+        - Something else / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-observed
+    attributes:
+      label: Expected vs observed
+      description: What did you expect, and what happened instead?
+      placeholder: |
+        Expected: the sky background lands around 10 % after the shadow lift.
+        Observed: it clips to zero and the clip warning covers the whole frame.
+    validations:
+      required: true
+
+  - type: textarea
+    id: controls
+    attributes:
+      label: Control values
+      description: The settings in the Inspector when the problem appears.
+      placeholder: |
+        Mode: Arcsinh
+        Stretch: 120
+        Black Point: 0.018
+        Shadow Lift: 0.0
+        Preserve Color: 1.0
+    validations:
+      required: true
+
+  - type: input
+    id: colourspace
+    attributes:
+      label: Working colour space
+      description: Timeline working space, and whether a CST to linear sits in front of the node.
+      placeholder: "DaVinci WG / Linear, no CST needed — or: DaVinci Intermediate + CST to Linear on node 01"
+    validations:
+      required: true
+
+  - type: input
+    id: resolve
+    attributes:
+      label: Resolve version and edition
+      description: The DCTLs require Studio — the free edition has no DCTL support at all.
+      placeholder: Resolve Studio 19.1.2
+    validations:
+      required: true
+
+  - type: input
+    id: system
+    attributes:
+      label: Operating system and GPU
+      placeholder: "macOS 15.3, M2 Max — or: Windows 11, RTX 4070"
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Image resolution and source
+      description: Where the image came from and how large it is. Several parameters scale with resolution.
+      placeholder: 6048x4024, 16-bit TIFF out of Siril (stacked, background extracted)
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshot or node graph
+      description: A screenshot of the node tree or the viewer usually settles it faster than a description. Drag files in here.
+    validations:
+      required: false

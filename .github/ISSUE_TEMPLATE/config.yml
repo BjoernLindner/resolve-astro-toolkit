@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question about the workflow
+    url: https://github.com/BjoernLindner/resolve-astro-toolkit/blob/develop/docs/workflow.md
+    about: Where each tool belongs in the chain, and why the order matters.
+  - name: Why something is not implemented
+    url: https://github.com/BjoernLindner/resolve-astro-toolkit/blob/develop/docs/limitations.md
+    about: Stacking, true DBE, starless separation and ICC soft proofing are deliberately out of scope.

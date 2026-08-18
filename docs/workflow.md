@@ -1,105 +1,105 @@
-# Wo im Workflow diese Werkzeuge hingehören
+# Where these tools belong in the workflow
 
-Dieses Toolkit ist ein Baustein, kein Weg. Damit die Werkzeuge das tun, was sie sollen, müssen sie an der richtigen Stelle stehen — und die Reihenfolge ist bei Astro nicht Geschmackssache, sondern folgt aus der Mathematik.
+This toolkit is a building block, not a path. For the tools to do what they are supposed to do, they have to sit in the right place — and with astro the order is not a matter of taste, it follows from the maths.
 
 ---
 
-## Die Gesamtkette
+## The full chain
 
 ```
-1  AUFNAHME
-   Mehrere Himmelsframes, moeglichst separate Vordergrundframes
+1  CAPTURE
+   Several sky frames, ideally separate foreground frames
 
-2  VORVERARBEITUNG            Siril / Seti Astro Suite Pro
-   Kalibrierung (Darks/Flats/Bias)
-   Registrierung + Stacking   ← Resolve kann das nicht
-   Background Extraction      ← global, gehoert hierhin
-   Farbkalibrierung (SPCC)
-   Sternentrennung (StarNet2)
-   → 16-bit oder 32-bit TIFF, linear
+2  PREPROCESSING              Siril / Seti Astro Suite Pro
+   Calibration (darks/flats/bias)
+   Registration + stacking    ← Resolve cannot do this
+   Background extraction      ← global, belongs here
+   Colour calibration (SPCC)
+   Star separation (StarNet2)
+   → 16-bit or 32-bit TIFF, linear
 
-3  GRADING                    DaVinci Resolve Studio  ← dieses Toolkit
+3  GRADING                    DaVinci Resolve Studio  ← this toolkit
    CST → linear
    AstroStretch
-   AstroGradient (lokale Restkorrektur)
+   AstroGradient (local residual correction)
    AstroSCNR
    AstroStarReduce
-   + Resolves eigene Werkzeuge
+   + Resolve's own tools
    CST → Adobe RGB
    → 16-bit TIFF
 
-4  DRUCKVORSTUFE              Affinity Photo / Photoshop / darktable
-   ICC-Softproof              ← Resolve kann das nicht
-   Output-Sharpening
-   Dithering gegen Banding
+4  PRINT PREPARATION          Affinity Photo / Photoshop / darktable
+   ICC soft proofing          ← Resolve cannot do this
+   Output sharpening
+   Dithering against banding
 ```
 
-Zwei Schritte kann Resolve nicht und wird es nicht können: **Stacking mit Registrierung** und **ICC-Softproofing auf Druckerprofile**. Beides ist keine Bequemlichkeitsfrage, sondern eine Architekturfrage — siehe [grenzen.md](grenzen.md).
+Two steps Resolve cannot do and will not be able to do: **stacking with registration** and **ICC soft proofing against printer profiles**. Neither is a question of convenience, both are architectural — see [limitations.md](limitations.md).
 
 ---
 
-## Die Node-Kette in Resolve
+## The node chain in Resolve
 
-Ein Vorschlag, der sich aus der Reihenfolgelogik ergibt:
+A proposal that follows from the ordering logic:
 
-| Node | Werkzeug | Warum hier |
+| Node | Tool | Why here |
 |---|---|---|
-| 01 | **CST** Input → DaVinci WG / Linear | Alles Folgende setzt lineare Daten voraus |
-| 02 | Spatial NR *(Studio)* | Chroma-Rauschen früh weg, solange es noch gaußförmig ist |
-| 03 | **AstroGradient** | Restgradienten entfernen, **bevor** gestretcht wird |
-| 04 | **AstroStretch** (Arcsinh) | Der erste, kräftige Stretch |
-| 05 | **AstroStretch** (MTF, sanft) | Feinabstimmung — zwei sanfte Stretches schlagen einen aggressiven |
-| 06 | **AstroSCNR** | Grünstich, der jetzt erst sichtbar geworden ist |
-| 07 | HDR-Palette / Log Wheels | Eigene Zone auf die Milchstraßen-Luminanz legen |
-| 08 | Lum vs Sat | Sättigung in den Schatten senken → Farbrauschen im Himmel |
-| 09 | Hue vs Sat | Blau/Cyan anheben, Orange der Lichtverschmutzung senken |
-| 10 | **AstroStarReduce** | Sterne zurücknehmen, nachdem der Kontrast steht |
-| 11 | Power Window / Magic Mask | Himmel und Vordergrund trennen, Vordergrund separat behandeln |
-| 12 | Blur/Sharpen | Schärfen zuletzt |
-| 13 | **CST** Linear → Adobe RGB | Ausgabefarbraum |
+| 01 | **CST** Input → DaVinci WG / Linear | Everything that follows assumes linear data |
+| 02 | Spatial NR *(Studio)* | Chroma noise out early, while it is still Gaussian |
+| 03 | **AstroGradient** | Remove residual gradients **before** stretching |
+| 04 | **AstroStretch** (arcsinh) | The first, strong stretch |
+| 05 | **AstroStretch** (MTF, gentle) | Fine tuning — two gentle stretches beat one aggressive one |
+| 06 | **AstroSCNR** | The green cast, which has only now become visible |
+| 07 | HDR palette / log wheels | Put a dedicated zone on the Milky Way luminance |
+| 08 | Lum vs Sat | Lower saturation in the shadows → colour noise in the sky |
+| 09 | Hue vs Sat | Raise blue/cyan, lower the orange of light pollution |
+| 10 | **AstroStarReduce** | Pull the stars back once the contrast is settled |
+| 11 | Power Window / Magic Mask | Separate sky and foreground, treat the foreground separately |
+| 12 | Blur/Sharpen | Sharpening last |
+| 13 | **CST** Linear → Adobe RGB | Output colour space |
 
 ---
 
-## Warum diese Reihenfolge
+## Why this order
 
-### Gradienten vor dem Stretch
+### Gradients before the stretch
 
-Ein Gradient ist im linearen Zustand eine einfache, glatte, additive Funktion. Nach dem Stretch ist er nichtlinear verzerrt und lässt sich mit einem glatten Modell nicht mehr sauber beschreiben.
+In the linear state a gradient is a simple, smooth, additive function. After the stretch it is distorted non-linearly and can no longer be described cleanly by a smooth model.
 
-Dazu kommt ein zweiter Effekt: Der Stretch verstärkt den Gradienten mit. Man wird dann gezwungen, den Schwarzpunkt so weit anzuheben, dass die helle Bildecke nicht überstrahlt — und verliert dabei die dunkle Ecke.
+There is a second effect on top of that: the stretch amplifies the gradient along with everything else. You are then forced to raise the black point far enough that the bright corner of the image does not glare — and you lose the dark corner in the process.
 
-### Rauschreduktion früh, aber Luminanz-NR spät
+### Noise reduction early, but luminance NR late
 
-Zwei Schulen, beide mit Argument. Chroma-Rauschen behandelt man früh und linear, weil es dort noch gaußförmig ist und weil Farbrauschen praktisch keine Information trägt. Luminanz-Rauschreduktion dagegen erst nach dem Stretch — vorher sieht man schlicht nicht, was man tut.
+Two schools, both with an argument. You treat chroma noise early and linear, because it is still Gaussian there and because colour noise carries practically no information. Luminance noise reduction, by contrast, only after the stretch — before it, you simply cannot see what you are doing.
 
-Und immer maskiert: helle, signalstarke Regionen schützen, nur die dunklen SNR-armen Bereiche glätten. Unmaskierte Luminanz-NR ist die Hauptursache für den Plastik-Look.
+And always masked: protect bright, high-signal regions, smooth only the dark, low-SNR areas. Unmasked luminance NR is the main cause of the plastic look.
 
-### SCNR nach dem Stretch
+### SCNR after the stretch
 
-Auf linearen Daten ist der Grünüberschuss noch klein und SCNR bringt wenig. Er entsteht sichtbar erst durch den Stretch, weil die Bayer-Matrix doppelt so viele Grünpixel hat und die Verstärkung das mitzieht.
+On linear data the green excess is still small and SCNR achieves little. It only becomes visible through the stretch, because the Bayer matrix has twice as many green pixels and the amplification carries that along.
 
-### Sternreduktion nach dem Kontrast
+### Star reduction after the contrast
 
-Andersherum bläht jede Kontraststeigerung die eben verkleinerten Sterne wieder auf, und man bekommt zusätzlich dunkle Ringe um helle Sterne.
+The other way round, every increase in contrast bloats the stars you just shrank back up again, and you get dark rings around bright stars on top.
 
-### Schärfen ganz zuletzt
+### Sharpening dead last
 
-Jede Skalierung zerstört die Wirkung vorheriger Schärfung. Output-Sharpening muss auf die finale Pixelgröße und das Papier abgestimmt sein — und gehört deshalb eigentlich nicht mehr nach Resolve, sondern in die Druckvorstufe.
+Any scaling destroys the effect of earlier sharpening. Output sharpening has to be matched to the final pixel size and to the paper — and therefore does not really belong in Resolve at all, but in print preparation.
 
-### Schwarzpunkt nie clippend
+### Never let the black point clip
 
-Der Nachthimmel ist nie völlig schwarz. Ein auf null geclippter Hintergrund verliert nicht nur Struktur, er produziert im Großformatdruck sichtbares Banding, weil die Quantisierungsstufen in einer glatten dunklen Fläche über 84 cm Bildbreite auseinandergezogen werden.
+The night sky is never completely black. A background clipped to zero does not just lose structure, it produces visible banding in large-format print, because the quantisation steps in a smooth dark area get stretched across 84 cm of image width.
 
-Zielwert: Hintergrund bei etwa **8–15 %**. `AstroStretch` hat dafür einen Sockel-Regler und eine Clip-Warnung, die rot anzeigt, wo der Schwarzpunkt gerade Information vernichtet.
+Target value: background at roughly **8–15 %**. `AstroStretch` has a shadow lift slider for that and a clip warning that shows in red where the black point is currently destroying information.
 
 ---
 
-## Ein Wort zum Vordergrund
+## A word on the foreground
 
-Bei Nightscapes ist der Vordergrund fast immer der Flaschenhals — er liegt typisch 4–8 EV unter dem Himmel. Kein Werkzeug in diesem Toolkit repariert das.
+With nightscapes the foreground is almost always the bottleneck — it typically sits 4–8 EV below the sky. No tool in this toolkit repairs that.
 
-Was hilft, ist eine **getrennte Behandlung**: den Vordergrund als eigenen Zweig im Node-Graph entwickeln, mit anderer Farbtemperatur, aufgehellten Schatten und deutlich stärkerer Rauschreduktion — und über eine Maske einblenden.
+What helps is **separate treatment**: develop the foreground as its own branch in the node graph, with a different colour temperature, lifted shadows and considerably stronger noise reduction — and blend it in through a mask.
 
-Für die Maske: bei weichen Horizonten ein Gradient-Power-Window, bei Silhouetten (Bäume, Felskanten) besser die Magic Mask oder ein kanalbasierter Qualifier. Eine weich gefederte Kante ist bei Nadelbäumen fatal und erzeugt einen sichtbaren Halo.
+For the mask: a gradient Power Window for soft horizons, and for silhouettes (trees, rock edges) rather the Magic Mask or a channel-based qualifier. A softly feathered edge is fatal with conifers and produces a visible halo.
 
-Und alle Gradientenwerkzeuge müssen vom Vordergrund ferngehalten werden. Eine dunkle Landschaft sieht für ein Blur-Modell wie ein Gradient aus.
+And all gradient tools have to be kept away from the foreground. A dark landscape looks like a gradient to a blur model.

@@ -24,7 +24,7 @@ The dividing line is clean:
 
 > **Anything needing multiple images or global optimisation belongs in Siril. Anything pixel-wise or local can live in Resolve — and some of it works better there.**
 
-So: no stacking, no registration, no true DBE with sample points and a least-squares fit, no neural-network star removal. Those are weeks of work for a worse result than free tools already give you. See [docs/grenzen.md](docs/grenzen.md) for the reasoning in full.
+So: no stacking, no registration, no true DBE with sample points and a least-squares fit, no neural-network star removal. Those are weeks of work for a worse result than free tools already give you. See [docs/limitations.md](docs/limitations.md) for the reasoning in full.
 
 Where this toolkit earns its place is **after** Siril: local refinement, masked correction, and finishing — with all of Resolve's grading tools available on the same node graph.
 

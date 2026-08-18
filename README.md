@@ -42,7 +42,7 @@ Where this toolkit earns its place is **after** Siril: local refinement, masked 
 ## Requirements
 
 - **DaVinci Resolve Studio 18 or newer.** DCTL support is Studio-only; the free edition has no DCTL entry in the LUT menu and no DCTL OFX node.
-- A working space that is **linear**. The stretch maths assumes scene-linear data — applied to log data it is simply wrong. See [INSTALL.md](INSTALL.md#farbmanagement).
+- A working space that is **linear**. The stretch maths assumes scene-linear data — applied to log data it is simply wrong. See [INSTALL.md](INSTALL.md#colour-management).
 
 ## Installation
 

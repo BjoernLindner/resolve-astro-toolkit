@@ -68,7 +68,11 @@ For a bug report, the working colour space is the single most useful field: the 
 
 ### DCTLs
 
-The development cycle is fast: save the file, click *Update Lists* in Resolve's Color Management, and the change is live. No restart.
+Save the file and click *Update Lists* in Resolve's Color Management to make a new DCTL appear in the list.
+
+**But a DCTL that is already applied to a node does not reload that way.** Resolve keeps the version it compiled earlier, and the edit appears to have no effect. Restart Resolve to test a change to a DCTL that is in use.
+
+This is worth knowing before you spend an hour on it: judging a fix against a stale build sends you looking for problems that are not there. It did exactly that during #15. A cheap defence while iterating is to put something identifiable in a slider label, so you can see which build is running.
 
 Two things to keep in mind when editing:
 

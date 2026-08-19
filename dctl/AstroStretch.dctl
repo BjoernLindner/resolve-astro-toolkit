@@ -1,5 +1,5 @@
 // =====================================================================
-//  AstroStretch.dctl  ·  v1.0
+//  AstroStretch.dctl  -  v1.0
 //  Non-linear astro stretching for DaVinci Resolve Studio 18+
 //
 //  Adds the two stretch functions that are standard in astrophotography
@@ -46,10 +46,10 @@
 // =====================================================================
 
 DEFINE_UI_PARAMS(mode,        Mode,                  DCTLUI_COMBO_BOX,     0, {M_ASINH, M_MTF}, {Arcsinh, MTF Midtone})
-DEFINE_UI_PARAMS(stretch,     Stretch (Arcsinh),     DCTLUI_SLIDER_FLOAT,  25.0f,  1.0f, 1000.0f, 0.5f)
-DEFINE_UI_PARAMS(midtone,     Midtone (MTF),         DCTLUI_SLIDER_FLOAT,   0.25f, 0.005f, 0.5f,  0.001f)
+DEFINE_UI_PARAMS(stretch,     Arcsinh Stretch,       DCTLUI_SLIDER_FLOAT,  25.0f,  1.0f, 1000.0f, 0.5f)
+DEFINE_UI_PARAMS(midtone,     MTF Midtone,           DCTLUI_SLIDER_FLOAT,   0.25f, 0.005f, 0.5f,  0.001f)
 DEFINE_UI_PARAMS(blackpoint,  Black Point,           DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.25f,  0.0002f)
-DEFINE_UI_PARAMS(shadowlift,  Shadow Lift (Anti-Clip), DCTLUI_SLIDER_FLOAT, 0.0f,  0.0f,  0.15f,  0.001f)
+DEFINE_UI_PARAMS(shadowlift,  Shadow Lift,           DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.15f,  0.001f)
 DEFINE_UI_PARAMS(preserve,    Preserve Color,        DCTLUI_SLIDER_FLOAT,   1.0f,  0.0f,  1.0f,   0.01f)
 DEFINE_UI_PARAMS(hiprotect,   Highlight Protection,  DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  1.0f,   0.01f)
 DEFINE_UI_PARAMS(clipwarn,    Clip Warning,          DCTLUI_CHECK_BOX,      0)
@@ -58,15 +58,25 @@ DEFINE_UI_PARAMS(bypass,      Bypass,                DCTLUI_CHECK_BOX,      0)
 
 
 // ---------------------------------------------------------------------
+//  asinh(v) = log(v + sqrt(v*v + 1)), for v >= 0.
+//  Written out because the DCTL runtime does not expose an inverse
+//  hyperbolic sine - only _sinhf/_coshf/_tanhf are available.
+// ---------------------------------------------------------------------
+__DEVICE__ float astro_asinh(float v)
+{
+    return _logf(v + _sqrtf(v * v + 1.0f));
+}
+
+// ---------------------------------------------------------------------
 //  Arcsinh stretch, expressed as a multiplier.
 //  Returns k with  y = k * x.  For x -> 0 the limit is s/asinh(s).
 // ---------------------------------------------------------------------
 __DEVICE__ float asinh_factor(float x, float s)
 {
-    float d = _asinhf(s);
+    float d = astro_asinh(s);
     if (d < 1e-8f) return 1.0f;
     if (x < 1e-7f) return s / d;
-    return _asinhf(s * x) / (x * d);
+    return astro_asinh(s * x) / (x * d);
 }
 
 // ---------------------------------------------------------------------
@@ -90,8 +100,7 @@ __DEVICE__ float stretch_factor(float x, int md, float s, float m)
 }
 
 
-__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
-                            float p_R, float p_G, float p_B)
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
 {
     float r = p_R;
     float g = p_G;

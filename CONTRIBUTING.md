@@ -17,6 +17,7 @@ The astro and Resolve communities are overwhelmingly English-speaking, and this 
 | `main` | Released, tested states only. Never commit here directly. |
 | `develop` | Integration branch, and the repository default. Feature branches start and end here. |
 | `feature/<issue>-<shortname>` | One branch per issue, e.g. `feature/3-soft-sky-mask` |
+| `bugfix/<issue>-<shortname>` | A fix for something already on `develop` but not yet released |
 | `release/<version>` | Stabilisation before a release; merges into both `main` and `develop` |
 | `hotfix/<shortname>` | Urgent fix straight off `main`, merges back into `main` and `develop` |
 
@@ -71,6 +72,8 @@ The development cycle is fast: save the file, click *Update Lists* in Resolve's 
 
 Two things to keep in mind when editing:
 
+- **Keep the file pure ASCII.** Resolve's DCTL preprocessor does not handle multi-byte characters. A single `·` in a comment is enough to make the file fail to compile, and the error it reports points somewhere else entirely. All eleven reference DCTLs Blackmagic ships are pure ASCII. Check with `file dctl/*.dctl` — it must say `ASCII text`, not `UTF-8`.
+- **No parentheses in `DEFINE_UI_PARAMS` labels.** The parser splits the macro arguments and parentheses break it: `Stretch (Arcsinh)` produces `unknown type of DCTLUIParams definition`, after which every parameter is undefined and the Metal compiler reports a cascade of unrelated errors. Write `Arcsinh Stretch` instead. The same caution applies to commas and braces.
 - **Do not change the parameter variable name** in `DEFINE_UI_PARAMS` — the first argument. Resolve matches saved grades on it. Labels, defaults and ranges can change; the ID cannot, or saved grades lose their values.
 - DCTLs see one input image and one frame. Anything needing two images, a second pass or a reduction across the whole frame belongs in a Fusion macro or a Fuse. See [docs/limitations.md](docs/limitations.md).
 

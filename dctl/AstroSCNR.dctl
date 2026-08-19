@@ -1,5 +1,5 @@
 // =====================================================================
-//  AstroSCNR.dctl  ·  v1.0
+//  AstroSCNR.dctl  -  v1.0
 //  Subtractive Chromatic Noise Reduction for DaVinci Resolve Studio
 //
 //  Removes the green cast that practically every stretched astro image
@@ -44,8 +44,7 @@ DEFINE_UI_PARAMS(showmask, Show Mask,          DCTLUI_CHECK_BOX,    0)
 DEFINE_UI_PARAMS(bypass,   Bypass,             DCTLUI_CHECK_BOX,    0)
 
 
-__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
-                            float p_R, float p_G, float p_B)
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
 {
     float r = p_R;
     float g = p_G;
@@ -90,9 +89,9 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
     // only use it when the brightness loss is actually a problem.
     if (preserve && removed > 0.0f)
     {
-        float half = removed * 0.5f;
-        r = r + half;
-        b = b + half;
+        float share = removed * 0.5f;
+        r = r + share;
+        b = b + share;
     }
 
     return make_float3(r, g_out, b);

@@ -68,20 +68,32 @@ Which route fits depends on what you are feeding in:
 
 The shortest path when the source is a RAW file, and the one that leaves the fewest ways to go wrong. No transform node at all.
 
-> Project Settings → **Camera Raw**
-> - RAW profile: your camera's, e.g. **Sony Stills - ARW**
-> - Decode using: **Project** (so the settings below actually apply)
->
-> then under *Project Settings* in the same panel:
->
-> | Setting | Value | Why |
-> |---|---|---|
-> | Gamma | **Linear** | The one that decides whether the stretch is right or wrong |
-> | Color space | your delivery primaries if offered — Adobe RGB for print, otherwise leave it | The gamut conversion is correct here, on linear data |
-> | Auto tone normalization | **off** | It rescales each image's tonal range on its own. That is the stretch's job, and with it on, two frames of the same scene are not comparable |
-> | Sharpness | **0.00** | Sharpening at decode amplifies noise and bloats stars. It belongs at the very end of the chain, if at all — see [docs/workflow.md](docs/workflow.md) |
+The settings to change:
 
-**The viewer will go almost black.** That is correct, not a fault. Linear night-sky data sits at a few tenths of a percent; the whole point of `AstroStretch` is to lift it. If the image still looks like a normal photograph after this, the decode is not linear.
+| Setting | Value | Why |
+|---|---|---|
+| Gamma | **Linear** | The one that decides whether the stretch is right or wrong |
+| Color space | your delivery primaries if offered — Adobe RGB for print, otherwise leave it | The gamut conversion is correct here, on linear data |
+| Auto tone normalization | **off** | It rescales each image's tonal range on its own. That is the stretch's job, and with it on, two frames of the same scene are not comparable |
+| Sharpness | **0.00** | Sharpening at decode amplifies noise and bloats stars. It belongs at the very end of the chain, if at all — see [docs/workflow.md](docs/workflow.md) |
+
+#### Set them on the image, not only in Project Settings
+
+> ⚠️ **Changing Project Settings → Camera Raw will appear to do nothing.** Images already in the album carry their own RAW settings, and those win. You can toggle the project Gamma between `Linear` and `sRGB` and get an identical histogram.
+
+Resolve's manual puts it plainly: `Decode Using` governs whether raw media is decoded *"using the original Camera Metadata settings (the default selection)"* or using the project settings — and that is a property of each clip. The project-level dropdown only sets a default.
+
+So on the Photo page:
+
+> Select the image → **Inspector → RAW tab**
+>
+> The four settings above live here, per image. Change them here and they take effect immediately.
+
+For a whole set, select the images in the filmstrip before changing anything. Whether the Photo page ripples the change reliably is not something we have confirmed — check the second image afterwards.
+
+Project Settings → Camera Raw is still worth setting to the same values, so that newly imported images start out right.
+
+**The viewer will go almost black.** That is correct, not a fault. The whole point of `AstroStretch` is to lift it. If the image still looks like a normal photograph after this, the decode is not linear.
 
 ### Route B — colour-managed project
 
@@ -129,12 +141,34 @@ The reasoning in full, including what to do if you would rather keep DaVinci Wid
 
 Colour space settings are easy to get wrong in a way that looks fine. Resolve's naming does not help: `Rec.709 (Scene)` reads as though it were scene-referred, but it is not linear, and picking it gives the stretch nothing it needs. Under plain DaVinci YRGB the timeline colour space setting is largely inert anyway, so setting it alone fixes nothing.
 
-Check the image instead of the dropdowns. Open the waveform, bypass everything downstream of the input, and look at the night sky:
+Check the image instead of the dropdowns. Open the waveform or histogram, bypass everything downstream of the input, and look at the night sky.
 
-- **Correct (linear):** the trace is crushed against the bottom of the scale. Almost nothing above the first few percent.
-- **Wrong (already gamma-encoded):** the trace sits in the middle of the scale, and the image looks like a viewable photograph before you have stretched anything.
+Measured on a Sony ARW frame (13 s, f/1.6, ISO 1000, moderate light pollution), on the 0–1023 scale Resolve's scopes use:
 
-The second case is the most common failure with this toolkit, and it is worth thirty seconds to rule out before blaming a slider.
+| | Histogram peak | Looks like |
+|---|---|---|
+| **Wrong** — still gamma-encoded | around **700** | a viewable photograph, before you have stretched anything |
+| **Correct** — linear | around **100** | almost black |
+
+The jump between those two is unmistakable, which is what makes this a better check than reading the dropdowns back.
+
+The gamma-encoded case is the most common failure with this toolkit, and it is worth thirty seconds to rule out before blaming a slider.
+
+### Black point before stretch
+
+Light pollution raises the linear floor. On the frame above the sky sat at roughly 10 % **while linear**, purely from the glow near the horizon.
+
+That matters for the order of operations: stretching first amplifies the light-pollution pedestal along with the signal. Pull the pedestal off first.
+
+1. Tick **Clip Warning** and raise **Black Point** slowly, until the sky darkens but before red appears
+2. Then raise **Arcsinh Stretch**
+
+Two notes from measuring this on real material:
+
+- The `Arcsinh Stretch` default of **25** is a sensible starting point on linear data — it put the sky at 13–25 % on the test frame, near the 8–15 % background target in [docs/workflow.md](docs/workflow.md).
+- Useful black point values are **small**. On the test frame 0.018 crushed most of the foreground; the usable range there was more like 0.002–0.005. Move in small steps and watch the warning.
+
+Raise the stretch by **doubling** — 25, 50, 100, 200 — rather than in small increments. Arcsinh responds logarithmically, so 25 to 30 does almost nothing while 25 to 400 is a different image.
 
 ---
 

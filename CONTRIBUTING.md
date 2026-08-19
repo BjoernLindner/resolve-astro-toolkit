@@ -17,6 +17,7 @@ The astro and Resolve communities are overwhelmingly English-speaking, and this 
 | `main` | Released, tested states only. Never commit here directly. |
 | `develop` | Integration branch, and the repository default. Feature branches start and end here. |
 | `feature/<issue>-<shortname>` | One branch per issue, e.g. `feature/3-soft-sky-mask` |
+| `bugfix/<issue>-<shortname>` | A fix for something already on `develop` but not yet released |
 | `release/<version>` | Stabilisation before a release; merges into both `main` and `develop` |
 | `hotfix/<shortname>` | Urgent fix straight off `main`, merges back into `main` and `develop` |
 

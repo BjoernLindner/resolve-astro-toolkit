@@ -58,15 +58,25 @@ DEFINE_UI_PARAMS(bypass,      Bypass,                DCTLUI_CHECK_BOX,      0)
 
 
 // ---------------------------------------------------------------------
+//  asinh(v) = log(v + sqrt(v*v + 1)), for v >= 0.
+//  Written out because the DCTL runtime does not expose an inverse
+//  hyperbolic sine - only _sinhf/_coshf/_tanhf are available.
+// ---------------------------------------------------------------------
+__DEVICE__ float astro_asinh(float v)
+{
+    return _logf(v + _sqrtf(v * v + 1.0f));
+}
+
+// ---------------------------------------------------------------------
 //  Arcsinh stretch, expressed as a multiplier.
 //  Returns k with  y = k * x.  For x -> 0 the limit is s/asinh(s).
 // ---------------------------------------------------------------------
 __DEVICE__ float asinh_factor(float x, float s)
 {
-    float d = _asinhf(s);
+    float d = astro_asinh(s);
     if (d < 1e-8f) return 1.0f;
     if (x < 1e-7f) return s / d;
-    return _asinhf(s * x) / (x * d);
+    return astro_asinh(s * x) / (x * d);
 }
 
 // ---------------------------------------------------------------------
@@ -90,8 +100,7 @@ __DEVICE__ float stretch_factor(float x, int md, float s, float m)
 }
 
 
-__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
-                            float p_R, float p_G, float p_B)
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
 {
     float r = p_R;
     float g = p_G;

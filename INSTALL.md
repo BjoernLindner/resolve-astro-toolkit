@@ -151,7 +151,7 @@ Measured on a Sony ARW frame (13 s, f/1.6, ISO 1000, moderate light pollution), 
 
 | | Histogram peak | Looks like |
 |---|---|---|
-| **Wrong** — still gamma-encoded | around **700** | a viewable photograph, before you have stretched anything |
+| **Wrong** — still gamma-encoded | around **384** | a viewable photograph, before you have stretched anything |
 | **Correct** — linear | around **100** | almost black |
 
 The jump between those two is unmistakable, which is what makes this a better check than reading the dropdowns back.

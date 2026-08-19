@@ -19,13 +19,13 @@ This toolkit is a building block, not a path. For the tools to do what they are 
    → 16-bit or 32-bit TIFF, linear
 
 3  GRADING                    DaVinci Resolve Studio  ← this toolkit
-   CST → linear
-   AstroStretch
+   Decode or convert to linear, in the delivery gamut
    AstroGradient (local residual correction)
+   AstroStretch                ← this is the transfer function
    AstroSCNR
    AstroStarReduce
    + Resolve's own tools
-   CST → Adobe RGB
+   (no closing transform)
    → 16-bit TIFF
 
 4  PRINT PREPARATION          Affinity Photo / Photoshop / darktable
@@ -44,7 +44,7 @@ A proposal that follows from the ordering logic:
 
 | Node | Tool | Why here |
 |---|---|---|
-| 01 | **CST** Camera Raw output → output primaries, **Linear** gamma, tone mapping *None* | Everything that follows assumes linear data — and this is where the gamut conversion belongs, see below |
+| 01 | **CST** Camera Raw output → output primaries, **Linear** gamma, tone mapping *None*<br>*(not needed if the RAW is already decoded to linear)* | Everything that follows assumes linear data — and this is where the gamut conversion belongs, see below |
 | 02 | Spatial NR *(Studio)* | Chroma noise out early, while it is still Gaussian |
 | 03 | **AstroGradient** | Remove residual gradients **before** stretching |
 | 04 | **AstroStretch** (arcsinh) | The first, strong stretch |

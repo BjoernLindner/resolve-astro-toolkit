@@ -130,7 +130,13 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 
     // Remember whether the black point pushed this pixel all the way
     // to zero -> that is real loss of information.
-    int clipped = (r0 <= 0.0f && g0 <= 0.0f && b0 <= 0.0f) ? 1 : 0;
+    //
+    // A pixel that arrived black carried nothing for the black point to
+    // destroy, so it is not a clip. Without this test the letterbox or
+    // pillarbox padding around the frame lights up red at every setting,
+    // including a black point of zero, and the warning becomes noise.
+    int was_black = (r <= 0.0f && g <= 0.0f && b <= 0.0f) ? 1 : 0;
+    int clipped   = (!was_black && r0 <= 0.0f && g0 <= 0.0f && b0 <= 0.0f) ? 1 : 0;
 
     // ---- 2. Stretch ----------------------------------------------------
     // Rec.709 luminance. Slightly off in DWG, but perfectly good enough

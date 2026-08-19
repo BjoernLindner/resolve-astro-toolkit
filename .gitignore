@@ -1,23 +1,23 @@
-# Betriebssystem
+# Operating system
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Editoren
+# Editors
 .vscode/
 .idea/
 *.swp
 *~
 
-# Resolve / Fusion Arbeitsdateien
+# Resolve / Fusion working files
 *.drp
 *.drt
 *.drx
 *.log
 
-# Grosse Bilddaten gehoeren nicht ins Repo.
-# Beispielbilder in examples/ bitte als kleine JPEG/PNG-Ausschnitte
-# committen, nicht als Originale.
+# Large image data does not belong in the repo.
+# Please commit example images in examples/ as small JPEG/PNG crops,
+# not as originals.
 *.tif
 *.tiff
 *.exr
@@ -33,6 +33,6 @@ desktop.ini
 *.rw2
 *.dng
 
-# Ausnahme: bewusst klein gehaltene Beispieldateien
+# Exception: deliberately small example files
 !examples/**/*.png
 !examples/**/*.jpg

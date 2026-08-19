@@ -1,78 +1,101 @@
 // =====================================================================
-//  AstroStretch.dctl  ·  v1.0
-//  Nichtlineares Astro-Stretching fuer DaVinci Resolve Studio 18+
+//  AstroStretch.dctl  -  v0.1.0  (version of the toolkit release it ships in)
+//  Non-linear astro stretching for DaVinci Resolve Studio 18+
 //
-//  Ruestet Resolve die beiden Stretch-Funktionen nach, die in der
-//  Astrofotografie Standard sind und die Resolve nativ nicht hat:
+//  Adds the two stretch functions that are standard in astrophotography
+//  and that Resolve does not ship with:
 //
 //    Arcsinh   y = asinh(s*x) / asinh(s)
-//              Hebt schwache Signale stark an, komprimiert die Lichter
-//              sanft. Erhaelt Kanalverhaeltnisse deutlich besser als
-//              eine Gammakurve -> Sterne behalten ihre Farbe statt
-//              weiss auszubrennen. Der klassische erste Stretch.
+//              Lifts faint signal hard and compresses the highlights
+//              gently. Preserves channel ratios far better than a gamma
+//              curve -> stars keep their colour instead of blowing out
+//              to white. The classic first stretch.
 //
 //    MTF       y = ((m-1)*x) / ((2m-1)*x - m)
-//              Midtone Transfer Function (PixInsight-Histogramm-
-//              Transformation). Praeziser steuerbar, aber tendenziell
-//              sternaufblaehend. Gut fuer den zweiten, feinen Stretch.
+//              Midtone Transfer Function (the PixInsight histogram
+//              transformation). More precise to control, but tends to
+//              bloat stars. Good for the second, fine stretch.
 //
-//  WICHTIG - Farbraum:
-//  Beide Funktionen setzen LINEARE, szenenbezogene Daten voraus.
-//  Auf Log-Daten (DaVinci Intermediate, S-Log, N-Log) ist die Mathematik
-//  falsch. Entweder:
-//    a) Timeline Working Space = DaVinci Wide Gamut / Linear, oder
-//    b) Node davor: CST DaVinci Intermediate -> Linear
-//       Node danach: CST Linear -> DaVinci Intermediate
+//  IMPORTANT - colour space:
+//
+//  EXPECTS:  LINEAR, scene-referred data. On log data (DaVinci
+//            Intermediate, S-Log, N-Log) the maths is simply wrong.
+//            Either decode the RAW to linear, or put a CST in front
+//            with tone mapping set to None.
+//
+//  EMITS:    DISPLAY-REFERRED data. Arcsinh and MTF are the transfer
+//            function - that is what stretching means in astro. The
+//            output is not linear light any more.
+//
+//            So do NOT close the node chain with CST Linear -> Adobe
+//            RGB: that applies a second transfer function on top and
+//            lifts the image twice. Convert the gamut on the way IN
+//            instead, where the data is still linear and a matrix
+//            conversion is colorimetrically correct.
+//
+//            See docs/workflow.md, "Where the colour space transforms
+//            belong".
 //
 //  INSTALLATION:
 //  1. Project Settings -> Color Management -> "Open LUT Folder"
-//  2. Diese Datei dort ablegen (gerne in einen Unterordner "Astro")
-//  3. Im LUT-Browser bzw. Color Management auf "Update Lists" klicken
-//  4. Anwenden: OpenFX-Panel -> "DCTL" auf einen Node ziehen,
-//     im Inspector "AstroStretch" waehlen.
-//     (Der Weg per Rechtsklick auf den Node -> LUT funktioniert hier
-//      NICHT, weil dieses DCTL Regler hat - dafuer braucht es den
-//      DCTL-OFX-Node.)
-//  5. Nach jedem Speichern reicht "Update Lists" fuer einen Live-Reload.
+//  2. Drop this file in there (a subfolder "Astro" is fine)
+//  3. Click "Update Lists" in the LUT browser or Color Management
+//  4. Apply: OpenFX panel -> drag "DCTL" onto a node,
+//     pick "AstroStretch" in the Inspector.
+//     (Right-clicking the node -> LUT does NOT work here, because this
+//      DCTL has sliders - that path needs the DCTL OFX node.)
+//  5. "Update Lists" makes a newly added DCTL appear. It does NOT
+//     reliably reload one that is already applied to a node - restart
+//     Resolve to test an edit to a DCTL that is in use.
 //
-//  BEDIENUNG - empfohlene Reihenfolge:
-//  1. Schwarzpunkt: langsam hochziehen, bis der Himmelshintergrund
-//     dunkel wird - aber NICHT bis er clippt. Ziel ist ein Hintergrund
-//     bei ca. 8-15 %, nie 0. Die Anzeige "Clip Warnung" hilft.
-//  2. Stretch: hochziehen, bis die Milchstrasse sichtbar wird.
-//     Lieber zwei sanfte Nodes hintereinander als ein aggressiver.
-//  3. Farbe erhalten: auf 1.0 lassen. Auf 0 gedreht wird pro Kanal
-//     gestretcht - heller, aber Sternfarben bleichen aus.
-//  4. Lichterschutz: nur anfassen, wenn Sternkerne ausbrennen.
+//  USAGE - recommended order:
+//  1. Black Point: raise slowly until the sky background goes dark -
+//     but NOT until it clips. Aim for a background around 8-15 %,
+//     never 0. The "Clip Warning" display helps.
+//  2. Stretch: raise until the Milky Way becomes visible.
+//     Two gentle nodes in series beat one aggressive one.
+//  3. Preserve Color: leave at 1.0. Turned down to 0 it stretches per
+//     channel - brighter, but star colours wash out.
+//  4. Highlight Protection: only touch this if star cores blow out.
 // =====================================================================
 
-DEFINE_UI_PARAMS(mode,        Modus,             DCTLUI_COMBO_BOX,     0, {M_ASINH, M_MTF}, {Arcsinh, MTF Midtone})
-DEFINE_UI_PARAMS(stretch,     Stretch (Arcsinh), DCTLUI_SLIDER_FLOAT,  25.0f,  1.0f, 1000.0f, 0.5f)
-DEFINE_UI_PARAMS(midtone,     Midtone (MTF),     DCTLUI_SLIDER_FLOAT,   0.25f, 0.005f, 0.5f,  0.001f)
-DEFINE_UI_PARAMS(blackpoint,  Schwarzpunkt,      DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.25f,  0.0002f)
-DEFINE_UI_PARAMS(shadowlift,  Sockel (Anti-Clip),DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.15f,  0.001f)
-DEFINE_UI_PARAMS(preserve,    Farbe erhalten,    DCTLUI_SLIDER_FLOAT,   1.0f,  0.0f,  1.0f,   0.01f)
-DEFINE_UI_PARAMS(hiprotect,   Lichterschutz,     DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  1.0f,   0.01f)
-DEFINE_UI_PARAMS(clipwarn,    Clip Warnung,      DCTLUI_CHECK_BOX,      0)
-DEFINE_UI_PARAMS(clampout,    Ausgabe begrenzen, DCTLUI_CHECK_BOX,      1)
-DEFINE_UI_PARAMS(bypass,      Bypass,            DCTLUI_CHECK_BOX,      0)
+DEFINE_UI_PARAMS(mode,        Mode,                  DCTLUI_COMBO_BOX,     0, {M_ASINH, M_MTF}, {Arcsinh, MTF Midtone})
+DEFINE_UI_PARAMS(stretch,     Arcsinh Stretch,       DCTLUI_SLIDER_FLOAT,  25.0f,  1.0f, 1000.0f, 0.5f)
+DEFINE_UI_PARAMS(midtone,     MTF Midtone,           DCTLUI_SLIDER_FLOAT,   0.25f, 0.005f, 0.5f,  0.001f)
+DEFINE_UI_PARAMS(blackpoint,  Black Point,           DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.25f,  0.0002f)
+DEFINE_UI_PARAMS(shadowlift,  Shadow Lift,           DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.15f,  0.001f)
+DEFINE_UI_PARAMS(preserve,    Preserve Color,        DCTLUI_SLIDER_FLOAT,   1.0f,  0.0f,  1.0f,   0.01f)
+DEFINE_UI_PARAMS(hiprotect,   Highlight Protection,  DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  1.0f,   0.01f)
+DEFINE_UI_PARAMS(clipwarn,    Clip Warning,          DCTLUI_CHECK_BOX,      0)
+DEFINE_UI_PARAMS(clampout,    Clamp Output,          DCTLUI_CHECK_BOX,      1)
+DEFINE_UI_PARAMS(bypass,      Bypass,                DCTLUI_CHECK_BOX,      0)
 
 
 // ---------------------------------------------------------------------
-//  Arcsinh-Stretch, als Multiplikator ausgedrueckt.
-//  Rueckgabe k mit  y = k * x.  Fuer x -> 0 ist der Grenzwert s/asinh(s).
+//  asinh(v) = log(v + sqrt(v*v + 1)), for v >= 0.
+//  Written out because the DCTL runtime does not expose an inverse
+//  hyperbolic sine - only _sinhf/_coshf/_tanhf are available.
 // ---------------------------------------------------------------------
-__DEVICE__ float asinh_factor(float x, float s)
+__DEVICE__ float astro_asinh(float v)
 {
-    float d = _asinhf(s);
-    if (d < 1e-8f) return 1.0f;
-    if (x < 1e-7f) return s / d;
-    return _asinhf(s * x) / (x * d);
+    return _logf(v + _sqrtf(v * v + 1.0f));
 }
 
 // ---------------------------------------------------------------------
-//  Midtone Transfer Function (PixInsight), als Multiplikator.
-//  m = 0.5 ist die Identitaet, kleinere Werte hellen auf.
+//  Arcsinh stretch, expressed as a multiplier.
+//  Returns k with  y = k * x.  For x -> 0 the limit is s/asinh(s).
+// ---------------------------------------------------------------------
+__DEVICE__ float asinh_factor(float x, float s)
+{
+    float d = astro_asinh(s);
+    if (d < 1e-8f) return 1.0f;
+    if (x < 1e-7f) return s / d;
+    return astro_asinh(s * x) / (x * d);
+}
+
+// ---------------------------------------------------------------------
+//  Midtone Transfer Function (PixInsight), as a multiplier.
+//  m = 0.5 is the identity, smaller values brighten.
 // ---------------------------------------------------------------------
 __DEVICE__ float mtf_factor(float x, float m)
 {
@@ -91,8 +114,7 @@ __DEVICE__ float stretch_factor(float x, int md, float s, float m)
 }
 
 
-__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
-                            float p_R, float p_G, float p_B)
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
 {
     float r = p_R;
     float g = p_G;
@@ -100,7 +122,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
 
     if (bypass) return make_float3(r, g, b);
 
-    // ---- 1. Schwarzpunkt abziehen und neu skalieren -------------------
+    // ---- 1. Subtract the black point and rescale -----------------------
     float bp  = _clampf(blackpoint, 0.0f, 0.995f);
     float inv = 1.0f / (1.0f - bp);
 
@@ -108,20 +130,26 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
     float g0 = _fmaxf((g - bp) * inv, 0.0f);
     float b0 = _fmaxf((b - bp) * inv, 0.0f);
 
-    // Merker, ob dieses Pixel durch den Schwarzpunkt vollstaendig
-    // auf Null gedrueckt wurde -> das ist echter Informationsverlust.
-    int clipped = (r0 <= 0.0f && g0 <= 0.0f && b0 <= 0.0f) ? 1 : 0;
+    // Remember whether the black point pushed this pixel all the way
+    // to zero -> that is real loss of information.
+    //
+    // A pixel that arrived black carried nothing for the black point to
+    // destroy, so it is not a clip. Without this test the letterbox or
+    // pillarbox padding around the frame lights up red at every setting,
+    // including a black point of zero, and the warning becomes noise.
+    int was_black = (r <= 0.0f && g <= 0.0f && b <= 0.0f) ? 1 : 0;
+    int clipped   = (!was_black && r0 <= 0.0f && g0 <= 0.0f && b0 <= 0.0f) ? 1 : 0;
 
-    // ---- 2. Stretch ---------------------------------------------------
-    // Rec.709-Luminanz. In DWG leicht daneben, fuer die Gewichtung
-    // eines Helligkeits-Multiplikators aber vollkommen ausreichend.
+    // ---- 2. Stretch ----------------------------------------------------
+    // Rec.709 luminance. Slightly off in DWG, but perfectly good enough
+    // for weighting a brightness multiplier.
     float lum = 0.2126f * r0 + 0.7152f * g0 + 0.0722f * b0;
 
-    // Variante A: Multiplikator aus der Luminanz -> Kanalverhaeltnisse
-    //             und damit Sternfarben bleiben erhalten.
+    // Variant A: multiplier derived from luminance -> channel ratios,
+    //            and with them star colours, are preserved.
     float kl = stretch_factor(lum, mode, stretch, midtone);
 
-    // Variante B: jeder Kanal einzeln -> heller, aber entfaerbt.
+    // Variant B: each channel on its own -> brighter, but desaturated.
     float kr = stretch_factor(r0, mode, stretch, midtone);
     float kg = stretch_factor(g0, mode, stretch, midtone);
     float kb = stretch_factor(b0, mode, stretch, midtone);
@@ -135,14 +163,14 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
     float g1 = g0 * mg;
     float b1 = b0 * mb;
 
-    // ---- 3. Lichterschutz --------------------------------------------
-    // Blendet den Stretch in den obersten Tonwerten wieder zum
-    // Originalwert zurueck. Haelt Sternkerne klein und farbig,
-    // statt sie zu weissen Scheiben aufzublaehen.
+    // ---- 3. Highlight protection ---------------------------------------
+    // Fades the stretch back towards the original value in the topmost
+    // tones. Keeps star cores small and coloured instead of bloating
+    // them into white discs.
     float hp = _clampf(hiprotect, 0.0f, 1.0f);
     if (hp > 0.0f)
     {
-        float thr = 1.0f - 0.9f * hp;           // Einsatzpunkt
+        float thr = 1.0f - 0.9f * hp;           // onset point
         float t   = _clampf((lum - thr) / _fmaxf(1.0f - thr, 1e-4f), 0.0f, 1.0f);
         float s   = t * t * (3.0f - 2.0f * t);  // smoothstep
         s *= hp;
@@ -151,10 +179,10 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
         b1 = b1 * (1.0f - s) + b0 * s;
     }
 
-    // ---- 4. Sockel ----------------------------------------------------
-    // Hebt das Gesamtbild leicht an, damit der Himmelshintergrund
-    // ueber Null bleibt. Gegen abgesoffene Schatten im Druck und
-    // gegen Banding in dunklen Flaechen.
+    // ---- 4. Shadow lift ------------------------------------------------
+    // Raises the whole image slightly so the sky background stays above
+    // zero. Guards against crushed shadows in print and against banding
+    // in dark areas.
     float sl = _clampf(shadowlift, 0.0f, 0.5f);
     if (sl > 0.0f)
     {
@@ -164,9 +192,9 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
         b1 = b1 * k + sl;
     }
 
-    // ---- 5. Clip-Warnung ---------------------------------------------
-    // Faerbt Pixel rot, deren Information der Schwarzpunkt vernichtet
-    // hat. Zum Einstellen anschalten, vor dem Rendern ausschalten.
+    // ---- 5. Clip warning -----------------------------------------------
+    // Paints pixels red whose information the black point destroyed.
+    // Turn on while dialling in, turn off before rendering.
     if (clipwarn && clipped)
         return make_float3(1.0f, 0.0f, 0.0f);
 

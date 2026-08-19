@@ -2,9 +2,9 @@
 
 Astro image processing tools for **DaVinci Resolve Studio** — DCTLs and Fusion macros for the operations Resolve does not ship with: non-linear stretching, green cast removal, gradient subtraction and star reduction.
 
-Built for Milky Way nightscapes destined for large-format print, but nothing here is specific to that case.
+Built for Milky Way nightscapes destined for large-format print.
 
-> **Status: early.** The DCTLs work. The Fusion macros are in development — see [macros/README.md](macros/README.md).
+> **Status: early.** The DCTLs work — `AstroStretch` is verified end to end on real material in Resolve Studio 21, `AstroSCNR` loads and runs but its effect has not been assessed yet. The Fusion macros are not built — see [macros/README.md](macros/README.md).
 
 ---
 
@@ -24,7 +24,7 @@ The dividing line is clean:
 
 > **Anything needing multiple images or global optimisation belongs in Siril. Anything pixel-wise or local can live in Resolve — and some of it works better there.**
 
-So: no stacking, no registration, no true DBE with sample points and a least-squares fit, no neural-network star removal. Those are weeks of work for a worse result than free tools already give you. See [docs/grenzen.md](docs/grenzen.md) for the reasoning in full.
+So: no stacking, no registration, no true DBE with sample points and a least-squares fit, no neural-network star removal. Those are weeks of work for a worse result than free tools already give you. See [docs/limitations.md](docs/limitations.md) for the reasoning in full.
 
 Where this toolkit earns its place is **after** Siril: local refinement, masked correction, and finishing — with all of Resolve's grading tools available on the same node graph.
 
@@ -34,15 +34,24 @@ Where this toolkit earns its place is **after** Siril: local refinement, masked 
 
 | Tool | Type | Status | What it does |
 |---|---|---|---|
-| [`AstroStretch`](dctl/AstroStretch.dctl) | DCTL | ✅ working | Arcsinh and MTF (midtone transfer) stretching with colour preservation, highlight protection and a clip warning |
-| [`AstroSCNR`](dctl/AstroSCNR.dctl) | DCTL | ✅ working | Subtractive chromatic noise reduction — removes the green cast every stretched astro image develops |
-| `AstroGradient` | Fusion macro | 🚧 in development | Local gradient subtraction via a median/blur background model |
-| `AstroStarReduce` | Fusion macro | 🚧 in development | Morphological star reduction (rank-filter opening) |
+| [`AstroStretch`](dctl/AstroStretch.dctl) | DCTL | ✅ working — **the core tool** | Arcsinh and MTF (midtone transfer) stretching with colour preservation, highlight protection and a clip warning. Without it, linear astro data cannot be developed in Resolve at all |
+| [`AstroSCNR`](dctl/AstroSCNR.dctl) | DCTL | ✅ loads and runs — effect not yet assessed | Subtractive chromatic noise reduction — removes the green cast every stretched astro image develops. Unlike Siril's, it can be masked to the sky |
+| `AstroGradient` | Fusion macro | 🚧 in development | Local gradient subtraction via a median/blur background model. A maskable residual correction alongside GraXpert or Siril, not a replacement for either |
+| `AstroStarReduce` | Fusion macro | ⚠️ experimental | Morphological star reduction (rank-filter opening). On dense Milky Way fields it cannot tell stars from fine nebula structure — at a window of 5 px it removes 90 % of the star pixels and 77 % of the real structure with them ([measurements](macros/README.md#the-limit-honestly)) |
+
+### What you also need
+
+This toolkit is one link in a chain, not a self-contained solution:
+
+- **Before Resolve, required:** [Siril](https://siril.org) or [Seti Astro Suite](https://www.setiastro.com/) for calibration, registration, stacking, background extraction and colour calibration. Resolve cannot stack — and stacking gains more than any single processing step, since noise falls with 1/√N.
+- **After Resolve, required for print:** Affinity Photo, Photoshop or darktable for ICC soft proofing. Resolve's colour management is LUT-based and cannot load a paper or printer profile.
+
+The full chain is in [docs/workflow.md](docs/workflow.md); why those two steps will never move into Resolve is in [docs/limitations.md](docs/limitations.md).
 
 ## Requirements
 
 - **DaVinci Resolve Studio 18 or newer.** DCTL support is Studio-only; the free edition has no DCTL entry in the LUT menu and no DCTL OFX node.
-- A working space that is **linear**. The stretch maths assumes scene-linear data — applied to log data it is simply wrong. See [INSTALL.md](INSTALL.md#farbmanagement).
+- A working space that is **linear**. The stretch maths assumes scene-linear data — applied to log data it is simply wrong. See [INSTALL.md](INSTALL.md#colour-management).
 
 ## Installation
 
@@ -65,6 +74,10 @@ Print
 ```
 
 The long version, including where in the node tree each tool belongs and why the order matters, is in [docs/workflow.md](docs/workflow.md).
+
+## Contributing
+
+Way of working, commit format and the licensing constraint are in [CONTRIBUTING.md](CONTRIBUTING.md). Open points are tracked as [issues](https://github.com/BjoernLindner/resolve-astro-toolkit/issues).
 
 ## Licence
 

@@ -1,50 +1,50 @@
 // =====================================================================
-//  AstroSCNR.dctl  ·  v1.0
-//  Subtractive Chromatic Noise Reduction fuer DaVinci Resolve Studio
+//  AstroSCNR.dctl  -  v0.1.0  (version of the toolkit release it ships in)
+//  Subtractive Chromatic Noise Reduction for DaVinci Resolve Studio
 //
-//  Entfernt den Gruenstich, den praktisch jedes gestretchte Astrofoto
-//  bekommt. Ursache: die Bayer-Matrix hat doppelt so viele Gruen- wie
-//  Rot-/Blaupixel, und jeder Stretch verstaerkt das mit.
+//  Removes the green cast that practically every stretched astro image
+//  develops. Cause: the Bayer matrix has twice as many green photosites
+//  as red or blue ones, and every stretch amplifies that along with the
+//  signal.
 //
-//  Das Verfahren stammt aus PixInsight und ist physikalisch begruendet:
-//  am Nachthimmel gibt es praktisch keine gruenen Objekte. Wo Gruen
-//  deutlich ueber dem Mittel von Rot und Blau liegt, ist es Rauschen
-//  oder Kalibrierungsfehler - und darf weg.
+//  The method comes from PixInsight and has a physical basis: there are
+//  practically no green objects in the night sky. Wherever green sits
+//  well above the mean of red and blue, it is noise or a calibration
+//  error - and it can go.
 //
-//  Verfahren (Neutral Protection):
-//    Average Neutral    G' = min(G, (R+B)/2)      Standard, kraeftig
-//    Maximum Neutral    G' = min(G, max(R,B))     schonender
-//    Additive Mask      G' = G*(1-a) + min(G,x)*a  weich ueberblendet
+//  Methods (neutral protection):
+//    Average Neutral    G' = min(G, (R+B)/2)       standard, strong
+//    Maximum Neutral    G' = min(G, max(R,B))      gentler
+//    Additive Mask      G' = G*(1-a) + min(G,x)*a  soft blend
 //
-//  ANWENDUNG:
-//  NACH dem Stretch, VOR der finalen Saettigung. Auf linearen Daten
-//  bringt SCNR wenig, weil der Gruenueberschuss dort noch klein ist.
+//  USAGE:
+//  AFTER the stretch, BEFORE final saturation. On linear data SCNR does
+//  little, because the green excess is still small there.
 //
-//  Erst Staerke auf 1.0 stellen, den Effekt beurteilen, dann
-//  zurueckdrehen bis der Himmel neutral ist ohne dass die Landschaft
-//  im Vordergrund ihr Gruen verliert. Falls der Vordergrund leidet:
-//  diesen Node mit einem Power Window auf den Himmel begrenzen.
+//  Set Amount to 1.0 first, judge the effect, then dial back until the
+//  sky is neutral without the landscape in the foreground losing its
+//  green. If the foreground suffers: restrict this node to the sky with
+//  a Power Window.
 //
-//  ACHTUNG bei echtem Airglow: gruenes Nachthimmelsleuchten ist ein
-//  reales Phaenomen. Wenn du es im Bild haben willst, Staerke deutlich
-//  unter 1.0 halten oder ganz weglassen.
+//  CAREFUL with real airglow: green night-sky glow is a real phenomenon.
+//  If you want it in the image, keep Amount well below 1.0 or skip this
+//  node entirely.
 //
 //  INSTALLATION:
 //  Project Settings -> Color Management -> "Open LUT Folder",
-//  Datei dort ablegen, "Update Lists" klicken.
-//  Anwenden ueber OpenFX-Panel -> DCTL (nicht ueber Rechtsklick->LUT,
-//  weil dieses DCTL Regler hat).
+//  drop the file in there, click "Update Lists".
+//  Apply via the OpenFX panel -> DCTL (not via right-click -> LUT,
+//  because this DCTL has sliders).
 // =====================================================================
 
-DEFINE_UI_PARAMS(method,   Verfahren,      DCTLUI_COMBO_BOX,    0, {AVG_NEUTRAL, MAX_NEUTRAL, ADD_MASK}, {Average Neutral, Maximum Neutral, Additive Mask})
-DEFINE_UI_PARAMS(amount,   Staerke,        DCTLUI_SLIDER_FLOAT, 1.0f, 0.0f, 1.0f,  0.01f)
-DEFINE_UI_PARAMS(preserve, Luminanz halten,DCTLUI_CHECK_BOX,    0)
-DEFINE_UI_PARAMS(showmask, Maske zeigen,   DCTLUI_CHECK_BOX,    0)
-DEFINE_UI_PARAMS(bypass,   Bypass,         DCTLUI_CHECK_BOX,    0)
+DEFINE_UI_PARAMS(method,   Method,             DCTLUI_COMBO_BOX,    0, {AVG_NEUTRAL, MAX_NEUTRAL, ADD_MASK}, {Average Neutral, Maximum Neutral, Additive Mask})
+DEFINE_UI_PARAMS(amount,   Amount,             DCTLUI_SLIDER_FLOAT, 1.0f, 0.0f, 1.0f,  0.01f)
+DEFINE_UI_PARAMS(preserve, Preserve Luminance, DCTLUI_CHECK_BOX,    0)
+DEFINE_UI_PARAMS(showmask, Show Mask,          DCTLUI_CHECK_BOX,    0)
+DEFINE_UI_PARAMS(bypass,   Bypass,             DCTLUI_CHECK_BOX,    0)
 
 
-__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
-                            float p_R, float p_G, float p_B)
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
 {
     float r = p_R;
     float g = p_G;
@@ -54,7 +54,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
 
     float a = _clampf(amount, 0.0f, 1.0f);
 
-    // Referenzwert, den Gruen nicht ueberschreiten darf
+    // Reference value that green must not exceed
     float limit;
     if (method == 0)        limit = 0.5f * (r + b);      // Average Neutral
     else if (method == 1)   limit = _fmaxf(r, b);        // Maximum Neutral
@@ -62,8 +62,8 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
 
     float g_new = _fminf(g, limit);
 
-    // Ueberblenden. Bei "Additive Mask" wird zusaetzlich weicher
-    // gewichtet, je nachdem wie stark der Gruenueberschuss ist.
+    // Blend. "Additive Mask" additionally weights the blend by how
+    // large the green excess actually is.
     float w = a;
     if (method == 2)
     {
@@ -74,8 +74,8 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
 
     float g_out = g * (1.0f - w) + g_new * w;
 
-    // Wie viel Gruen wurde abgezogen - fuer Maskenanzeige und
-    // Luminanzausgleich
+    // How much green was removed - used for the mask display and for
+    // the luminance compensation
     float removed = g - g_out;
 
     if (showmask)
@@ -84,14 +84,14 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y,
         return make_float3(m, m, m);
     }
 
-    // Optional: die entfernte Helligkeit auf Rot und Blau verteilen,
-    // damit das Bild nicht insgesamt dunkler wird. Faerbt tendenziell
-    // magenta - nur benutzen wenn der Helligkeitsverlust stoert.
+    // Optional: redistribute the removed brightness onto red and blue
+    // so the image does not get darker overall. Tends towards magenta -
+    // only use it when the brightness loss is actually a problem.
     if (preserve && removed > 0.0f)
     {
-        float half = removed * 0.5f;
-        r = r + half;
-        b = b + half;
+        float share = removed * 0.5f;
+        r = r + share;
+        b = b + share;
     }
 
     return make_float3(r, g_out, b);

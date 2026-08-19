@@ -57,28 +57,52 @@ The sliders then appear directly below it in the Inspector.
 
 This is not an optional detail. **The stretch operates on scene-linear data.** On log data such as DaVinci Intermediate, S-Log or N-Log the maths is simply wrong — the result then looks flat and odd in the midtones, without it being immediately obvious why.
 
-Two ways to get there:
+Which route fits depends on what you are feeding in:
 
-### Route A — convenient
+| Source | Route |
+|---|---|
+| A camera RAW file (ARW, CR3, NEF, RAF, RW2, DNG) | **A** — decode it to linear and be done |
+| A 16-bit TIFF out of Siril or SASpro | **B** or **C** — the file is already linear, the project just has to leave it that way |
+
+### Route A — decode the RAW to linear
+
+The shortest path when the source is a RAW file, and the one that leaves the fewest ways to go wrong. No transform node at all.
+
+> Project Settings → **Camera Raw**
+> - RAW profile: your camera's, e.g. **Sony Stills - ARW**
+> - Decode using: **Project** (so the settings below actually apply)
+>
+> then under *Project Settings* in the same panel:
+>
+> | Setting | Value | Why |
+> |---|---|---|
+> | Gamma | **Linear** | The one that decides whether the stretch is right or wrong |
+> | Color space | your delivery primaries if offered — Adobe RGB for print, otherwise leave it | The gamut conversion is correct here, on linear data |
+> | Auto tone normalization | **off** | It rescales each image's tonal range on its own. That is the stretch's job, and with it on, two frames of the same scene are not comparable |
+> | Sharpness | **0.00** | Sharpening at decode amplifies noise and bloats stars. It belongs at the very end of the chain, if at all — see [docs/workflow.md](docs/workflow.md) |
+
+**The viewer will go almost black.** That is correct, not a fault. Linear night-sky data sits at a few tenths of a percent; the whole point of `AstroStretch` is to lift it. If the image still looks like a normal photograph after this, the decode is not linear.
+
+### Route B — colour-managed project
 
 > Project Settings → Color Management
 > - Color Science: **DaVinci YRGB Color Managed**
 > - Timeline Color Space: **DaVinci WG / Linear**
 
-### Route B — controlled (recommended while learning)
+### Route C — explicit transform nodes
 
 > Project Settings → Color Management → Color Science: **DaVinci YRGB**
 
-and build the colour space changes explicitly into the chain as nodes:
+and build the colour space change explicitly into the chain:
 
 ```
-Node 1   Color Space Transform   camera/input  →  DaVinci WG / Linear
+Node 1   Color Space Transform   input  ->  delivery primaries, Linear gamma
+                                            Tone Mapping: None
 Node 2   DCTL: AstroStretch
 Node 3   ... further grading ...
-Node n   Color Space Transform   DaVinci WG / Linear  →  Adobe RGB
 ```
 
-More nodes, but you can see at every point what state the data is in. For a project where the order decides the result, that is the better choice.
+More nodes, but you can see at every point what state the data is in. For a project where the order decides the result, that is the better choice. Note there is no closing transform — see below.
 
 ### Alternatively: just around the stretch
 
@@ -100,6 +124,17 @@ Two details that the standard Resolve grading pattern gets wrong for this toolki
 Put the gamut conversion on the way in instead — set the opening CST's output to your delivery primaries (Adobe RGB for print, sRGB for screen) with **Linear** gamma — and leave the end of the chain alone. A gamut conversion is a matrix operation and is only correct on linear light, which is what you have there and not what you have at the end.
 
 The reasoning in full, including what to do if you would rather keep DaVinci Wide Gamut as the working space, is in [docs/workflow.md](docs/workflow.md#where-the-colour-space-transforms-belong).
+
+### How to check, rather than trust the settings
+
+Colour space settings are easy to get wrong in a way that looks fine. Resolve's naming does not help: `Rec.709 (Scene)` reads as though it were scene-referred, but it is not linear, and picking it gives the stretch nothing it needs. Under plain DaVinci YRGB the timeline colour space setting is largely inert anyway, so setting it alone fixes nothing.
+
+Check the image instead of the dropdowns. Open the waveform, bypass everything downstream of the input, and look at the night sky:
+
+- **Correct (linear):** the trace is crushed against the bottom of the scale. Almost nothing above the first few percent.
+- **Wrong (already gamma-encoded):** the trace sits in the middle of the scale, and the image looks like a viewable photograph before you have stretched anything.
+
+The second case is the most common failure with this toolkit, and it is worth thirty seconds to rule out before blaming a slider.
 
 ---
 

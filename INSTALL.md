@@ -90,6 +90,17 @@ DCTL: AstroStretch
 CST: Linear → DaVinci Intermediate
 ```
 
+### The closing transform: there usually isn't one
+
+Two details that the standard Resolve grading pattern gets wrong for this toolkit:
+
+- **Tone mapping must be set to None** on the CST going in. It defaults to `DaVinci` with an adaptation value, and it compresses tones non-linearly — which destroys the linearity the stretch assumes.
+- **Do not close the chain with `CST Linear → Adobe RGB`.** `AstroStretch` *is* the transfer function; after it the data is display-referred, not linear light. A closing CST would apply a second curve on top, lifting the image twice.
+
+Put the gamut conversion on the way in instead — set the opening CST's output to your delivery primaries (Adobe RGB for print, sRGB for screen) with **Linear** gamma — and leave the end of the chain alone. A gamut conversion is a matrix operation and is only correct on linear light, which is what you have there and not what you have at the end.
+
+The reasoning in full, including what to do if you would rather keep DaVinci Wide Gamut as the working space, is in [docs/workflow.md](docs/workflow.md#where-the-colour-space-transforms-belong).
+
 ---
 
 ## Installing the Fusion macros

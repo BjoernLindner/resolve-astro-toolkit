@@ -44,7 +44,7 @@ A proposal that follows from the ordering logic:
 
 | Node | Tool | Why here |
 |---|---|---|
-| 01 | **CST** Input → DaVinci WG / Linear | Everything that follows assumes linear data |
+| 01 | **CST** Camera Raw output → output primaries, **Linear** gamma, tone mapping *None* | Everything that follows assumes linear data — and this is where the gamut conversion belongs, see below |
 | 02 | Spatial NR *(Studio)* | Chroma noise out early, while it is still Gaussian |
 | 03 | **AstroGradient** | Remove residual gradients **before** stretching |
 | 04 | **AstroStretch** (arcsinh) | The first, strong stretch |
@@ -56,7 +56,42 @@ A proposal that follows from the ordering logic:
 | 10 | **AstroStarReduce** | Pull the stars back once the contrast is settled |
 | 11 | Power Window / Magic Mask | Separate sky and foreground, treat the foreground separately |
 | 12 | Blur/Sharpen | Sharpening last |
-| 13 | **CST** Linear → Adobe RGB | Output colour space |
+| 13 | *(no closing CST)* | `AstroStretch` already applied the transfer function — see below |
+
+---
+
+## Where the colour space transforms belong
+
+The usual Resolve pattern is a sandwich: convert into a large working space at the top of the node tree, grade in the middle, convert to the output space at the bottom. That pattern is right, and it applies on the Photo page as much as on the Color page. But the standard filling — DaVinci Wide Gamut with **DaVinci Intermediate** gamma — is wrong for this toolkit, and the standard closing transform is wrong twice over.
+
+### The working gamma must be Linear, not Intermediate
+
+DaVinci Intermediate is a log curve. `AstroStretch` assumes scene-linear data; on log data the arcsinh maths is simply wrong. So the opening CST converts to **Linear**, not Intermediate, and its tone mapping must be set to **None** — tone mapping compresses tones non-linearly and destroys exactly the linearity the stretch depends on.
+
+If your source is a RAW file you can skip this node entirely by decoding to linear in Camera Raw. One transform fewer is one mistake fewer.
+
+### The stretch *is* the transfer function
+
+This is the part that catches people out. Arcsinh and MTF are precisely the curves that map scene-linear astro data into a viewable range — that is what "stretching" means in astrophotography. **After `AstroStretch`, the data is display-referred.** It is not linear light any more.
+
+So a closing `CST Linear → Adobe RGB` applies a *second* transfer function on top of the first. The image lifts twice, the shadows wash out, and the black point and shadow lift sliders stop meaning what their labels say. It looks plausible — brighter than the raw file, which is what you expected — and the damage only shows up in print, as a sky that will not sit at the 8–15 % this page asks for.
+
+### Therefore: convert the gamut on the way in, not on the way out
+
+A gamut conversion is a matrix operation, and it is only colorimetrically correct on linear light. Since the data is linear *before* the stretch and display-referred *after* it, the conversion belongs at node 01:
+
+```
+Node 01   CST   Camera Raw output  ->  Adobe RGB primaries, Linear gamma
+                                       Tone Mapping: None
+Node 02+  AstroStretch, AstroSCNR, grading  (Adobe RGB primaries, linear -> stretched)
+Node 13   nothing
+```
+
+Set node 01's output primaries to whatever you are delivering — Adobe RGB for print, sRGB for screen. Everything downstream then works in the delivery gamut, and no closing transform is needed.
+
+A side benefit: `AstroStretch` weights its luminance with the Rec.709 coefficients (0.2126 / 0.7152 / 0.0722). Those are a poorer fit in DaVinci Wide Gamut than in Adobe RGB or sRGB, which share the Rec.709 white point. Working in the delivery gamut makes the colour-preserving stretch slightly more accurate, not less.
+
+**The trade-off, stated honestly:** you give up the very large DaVinci Wide Gamut as a working space. If you would rather keep it, the closing CST must convert gamut *only* — the same gamma on both sides — and never `Linear → Adobe RGB`. That path introduces a small colorimetric error, because the CST will linearise using a standard curve that is not the arcsinh the data actually carries. The error is largest on saturated colours, which for this material means star colours — the very thing `AstroStretch` has a Preserve Color slider to protect.
 
 ---
 

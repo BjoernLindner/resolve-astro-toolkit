@@ -1,5 +1,7 @@
 # Where these tools belong in the workflow
 
+This page explains the ordering and the reasoning behind it. For the practical counterpart — one frame walked through with screenshots and measured values — see [Developing a single Milky Way frame in Resolve](https://github.com/BjoernLindner/resolve-astro-toolkit/wiki/Developing-a-single-Milky-Way-frame-in-Resolve) in the wiki.
+
 This toolkit is a building block, not a path. For the tools to do what they are supposed to do, they have to sit in the right place — and with astro the order is not a matter of taste, it follows from the maths.
 
 ---

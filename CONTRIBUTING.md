@@ -93,6 +93,24 @@ Anything not yet verified is marked as such. Keeping that boundary honest is mor
 
 ---
 
+## Releases
+
+Gitflow: cut `release/<version>` from `develop`, merge it into `main`, tag it there, then merge back into `develop`.
+
+**One version number, not several.** The `.dctl` files carry the version of the toolkit release they ship in — `v0.1.0`, matching the tag — and not a version of their own.
+
+That is deliberate. A `.dctl` file is the distributed artefact: users copy it into Resolve's LUT folder, where it is separated from this repository, from the README and from any tag. When a bug report arrives, the only way to answer "which version do you have?" is from the file itself. A per-file semantic version would be more precise in theory, but two counters that can drift apart buy nothing with two files and one maintainer — and a version line nobody remembers to raise is worse than none, because it actively misinforms.
+
+The consequence is that an unchanged DCTL still gets a new number each release. That is the accepted trade: provenance is more useful here than per-file change history.
+
+Steps for a release:
+
+1. Cut `release/<version>` from `develop`
+2. Raise the version line in the header of every `.dctl` and every macro `.setting` to the new version
+3. Check the status claims in `README.md` against what has actually been verified in Resolve
+4. Merge into `main`, tag, merge back into `develop`
+5. Write the release notes: what works, what was measured, and what is missing
+
 ## Licensing
 
 The project is MIT licensed, and it should stay permissively licensed.

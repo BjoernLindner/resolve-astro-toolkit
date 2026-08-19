@@ -1,5 +1,5 @@
 // =====================================================================
-//  AstroSCNR.dctl  -  v1.0
+//  AstroSCNR.dctl  -  v0.1.0  (version of the toolkit release it ships in)
 //  Subtractive Chromatic Noise Reduction for DaVinci Resolve Studio
 //
 //  Removes the green cast that practically every stretched astro image

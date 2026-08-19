@@ -44,7 +44,9 @@
 //     pick "AstroStretch" in the Inspector.
 //     (Right-clicking the node -> LUT does NOT work here, because this
 //      DCTL has sliders - that path needs the DCTL OFX node.)
-//  5. After every save, "Update Lists" is enough for a live reload.
+//  5. "Update Lists" makes a newly added DCTL appear. It does NOT
+//     reliably reload one that is already applied to a node - restart
+//     Resolve to test an edit to a DCTL that is in use.
 //
 //  USAGE - recommended order:
 //  1. Black Point: raise slowly until the sky background goes dark -

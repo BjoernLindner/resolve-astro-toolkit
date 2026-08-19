@@ -29,7 +29,11 @@ Create a subfolder `Astro` there and copy the `.dctl` files into it. The subfold
 
 ### 3. Update the lists
 
-Click **"Update Lists"** in the same dialog. A Resolve restart is not needed — that also holds after every edit to a `.dctl` file, which makes the development cycle very pleasant.
+Click **"Update Lists"** in the same dialog. No restart needed to make a newly added DCTL appear.
+
+> ⚠️ **Editing a DCTL that is already on a node is different.** *Update Lists* does not reliably reload it — Resolve keeps using the version it compiled earlier, and your change appears to do nothing. **Restart Resolve** to pick up an edited DCTL that is already in use.
+>
+> While iterating, put something identifiable in a slider label. It tells you at a glance which build is running; without it a stale reload is indistinguishable from a change that did not work.
 
 ### 4. Apply
 

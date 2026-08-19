@@ -1,5 +1,5 @@
 // =====================================================================
-//  AstroStretch.dctl  ·  v1.0
+//  AstroStretch.dctl  -  v1.0
 //  Non-linear astro stretching for DaVinci Resolve Studio 18+
 //
 //  Adds the two stretch functions that are standard in astrophotography
@@ -46,10 +46,10 @@
 // =====================================================================
 
 DEFINE_UI_PARAMS(mode,        Mode,                  DCTLUI_COMBO_BOX,     0, {M_ASINH, M_MTF}, {Arcsinh, MTF Midtone})
-DEFINE_UI_PARAMS(stretch,     Stretch (Arcsinh),     DCTLUI_SLIDER_FLOAT,  25.0f,  1.0f, 1000.0f, 0.5f)
-DEFINE_UI_PARAMS(midtone,     Midtone (MTF),         DCTLUI_SLIDER_FLOAT,   0.25f, 0.005f, 0.5f,  0.001f)
+DEFINE_UI_PARAMS(stretch,     Arcsinh Stretch,       DCTLUI_SLIDER_FLOAT,  25.0f,  1.0f, 1000.0f, 0.5f)
+DEFINE_UI_PARAMS(midtone,     MTF Midtone,           DCTLUI_SLIDER_FLOAT,   0.25f, 0.005f, 0.5f,  0.001f)
 DEFINE_UI_PARAMS(blackpoint,  Black Point,           DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.25f,  0.0002f)
-DEFINE_UI_PARAMS(shadowlift,  Shadow Lift (Anti-Clip), DCTLUI_SLIDER_FLOAT, 0.0f,  0.0f,  0.15f,  0.001f)
+DEFINE_UI_PARAMS(shadowlift,  Shadow Lift,           DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  0.15f,  0.001f)
 DEFINE_UI_PARAMS(preserve,    Preserve Color,        DCTLUI_SLIDER_FLOAT,   1.0f,  0.0f,  1.0f,   0.01f)
 DEFINE_UI_PARAMS(hiprotect,   Highlight Protection,  DCTLUI_SLIDER_FLOAT,   0.0f,  0.0f,  1.0f,   0.01f)
 DEFINE_UI_PARAMS(clipwarn,    Clip Warning,          DCTLUI_CHECK_BOX,      0)

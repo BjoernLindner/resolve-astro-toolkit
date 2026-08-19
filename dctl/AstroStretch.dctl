@@ -17,12 +17,24 @@
 //              bloat stars. Good for the second, fine stretch.
 //
 //  IMPORTANT - colour space:
-//  Both functions assume LINEAR, scene-referred data. On log data
-//  (DaVinci Intermediate, S-Log, N-Log) the maths is simply wrong.
-//  Either:
-//    a) Timeline working space = DaVinci Wide Gamut / Linear, or
-//    b) Node before: CST DaVinci Intermediate -> Linear
-//       Node after:  CST Linear -> DaVinci Intermediate
+//
+//  EXPECTS:  LINEAR, scene-referred data. On log data (DaVinci
+//            Intermediate, S-Log, N-Log) the maths is simply wrong.
+//            Either decode the RAW to linear, or put a CST in front
+//            with tone mapping set to None.
+//
+//  EMITS:    DISPLAY-REFERRED data. Arcsinh and MTF are the transfer
+//            function - that is what stretching means in astro. The
+//            output is not linear light any more.
+//
+//            So do NOT close the node chain with CST Linear -> Adobe
+//            RGB: that applies a second transfer function on top and
+//            lifts the image twice. Convert the gamut on the way IN
+//            instead, where the data is still linear and a matrix
+//            conversion is colorimetrically correct.
+//
+//            See docs/workflow.md, "Where the colour space transforms
+//            belong".
 //
 //  INSTALLATION:
 //  1. Project Settings -> Color Management -> "Open LUT Folder"

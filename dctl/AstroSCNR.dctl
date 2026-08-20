@@ -30,6 +30,21 @@
 //  If you want it in the image, keep Amount well below 1.0 or skip this
 //  node entirely.
 //
+//  EXCESS FULL SCALE:
+//  The green excess G - (R+B)/2 at which "Additive Mask" reaches full
+//  strength and "Show Mask" reaches white. It exists because a green
+//  cast is a small number and both of those had it hardcoded, at a
+//  value an order of magnitude too large - see issue #29.
+//
+//  The default of 0.017 is the 95th percentile of the green excess
+//  measured over the sky of three light-polluted 13 s ISO 1000 frames,
+//  after AstroStretch at the default Arcsinh 25. Reproduce it with
+//  examples/prototype_astro_dctl.py.
+//
+//  Lower it if "Additive Mask" is too weak or the mask stays dark;
+//  raise it on a heavier cast. It has no effect on Average Neutral or
+//  Maximum Neutral, which do not weight by the size of the excess.
+//
 //  INSTALLATION:
 //  Project Settings -> Color Management -> "Open LUT Folder",
 //  drop the file in there, click "Update Lists".
@@ -39,7 +54,7 @@
 
 DEFINE_UI_PARAMS(method,   Method,             DCTLUI_COMBO_BOX,    0, {AVG_NEUTRAL, MAX_NEUTRAL, ADD_MASK}, {Average Neutral, Maximum Neutral, Additive Mask})
 DEFINE_UI_PARAMS(amount,   Amount,             DCTLUI_SLIDER_FLOAT, 1.0f, 0.0f, 1.0f,  0.01f)
-DEFINE_UI_PARAMS(preserve, Preserve Luminance, DCTLUI_CHECK_BOX,    0)
+DEFINE_UI_PARAMS(excfull,  Excess Full Scale,  DCTLUI_SLIDER_FLOAT, 0.017f, 0.001f, 0.5f, 0.001f)
 DEFINE_UI_PARAMS(showmask, Show Mask,          DCTLUI_CHECK_BOX,    0)
 DEFINE_UI_PARAMS(bypass,   Bypass,             DCTLUI_CHECK_BOX,    0)
 
@@ -53,6 +68,10 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     if (bypass) return make_float3(r, g, b);
 
     float a = _clampf(amount, 0.0f, 1.0f);
+
+    // The excess that counts as full scale. Guarded so the divisions
+    // below cannot meet a zero even if the slider range ever changes.
+    float fs = _fmaxf(excfull, 1e-4f);
 
     // Reference value that green must not exceed
     float limit;
@@ -68,31 +87,30 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     if (method == 2)
     {
         float excess = g - limit;
-        float soft   = _clampf(excess * 4.0f, 0.0f, 1.0f);
+        float soft   = _clampf(excess / fs, 0.0f, 1.0f);
         w = a * soft;
     }
 
     float g_out = g * (1.0f - w) + g_new * w;
 
-    // How much green was removed - used for the mask display and for
-    // the luminance compensation
+    // How much green was removed - what the mask display shows
     float removed = g - g_out;
 
     if (showmask)
     {
-        float m = _clampf(removed * 8.0f, 0.0f, 1.0f);
+        float m = _clampf(removed / fs, 0.0f, 1.0f);
         return make_float3(m, m, m);
     }
 
-    // Optional: redistribute the removed brightness onto red and blue
-    // so the image does not get darker overall. Tends towards magenta -
-    // only use it when the brightness loss is actually a problem.
-    if (preserve && removed > 0.0f)
-    {
-        float share = removed * 0.5f;
-        r = r + share;
-        b = b + share;
-    }
+    // There was a "Preserve Luminance" checkbox here that added half the
+    // removed green onto red and blue. It was removed in v0.2.0 - see
+    // issue #30. Measured, it returned 19.9 % of the luminance it took
+    // away, because green carries a Rec.709 weight of 0.7152 while red
+    // and blue together carry 0.2848. Doing the job properly would need
+    // 2.51 * removed on each, five times as much, which drives the image
+    // hard into magenta. The control could not be made to do what its
+    // name said, and the fifth it did deliver is better handled by the
+    // Shadow Lift in AstroStretch, earlier in the chain.
 
     return make_float3(r, g_out, b);
 }

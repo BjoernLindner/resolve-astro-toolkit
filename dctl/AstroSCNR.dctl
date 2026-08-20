@@ -30,6 +30,48 @@
 //  If you want it in the image, keep Amount well below 1.0 or skip this
 //  node entirely.
 //
+//  EXCESS FULL SCALE:
+//  The green excess G - (R+B)/2 at which "Additive Mask" reaches full
+//  strength and "Show Mask" reaches white. It exists because a green
+//  cast is a small number and both of those had it hardcoded, at a
+//  value an order of magnitude too large - see issue #29.
+//
+//  The default of 0.034 is the 95th percentile of the positive green
+//  excess over the sky, read off a 16-bit export out of Resolve itself,
+//  through the colour management INSTALL.md describes, with AstroStretch
+//  ahead of it at its own default of Arcsinh 25.
+//
+//  MEASURE IT IN THE PIPELINE YOU GRADE IN. The same frame decoded
+//  straight from raw into camera primaries gives 0.017 - half as much.
+//  Primaries change the ratios between the channels, and this control is
+//  a difference between channels, so a figure taken from a raw decode
+//  does not carry into Resolve. Getting that wrong once is the reason
+//  this comment is as long as it is.
+//
+//  IT ALSO SCALES WITH THE STRETCH. A harder stretch produces a larger
+//  excess. Same frame, same pipeline:
+//
+//      Arcsinh 25    excess p95 0.034   <- the default
+//      Arcsinh 137   excess p95 0.077
+//
+//  Left too low, "Additive Mask" stops being the gentler method and the
+//  mask clips to solid white over most of the sky.
+//
+//  HOW TO SET IT: tick "Show Mask" with Amount at 1.0 and raise this
+//  until the mask stops clipping to flat white and starts showing
+//  structure. What you are looking at is where the green sits, so it
+//  should read as a picture of the cast, not as a white field. That
+//  beats any number in this comment, because it measures your grade
+//  rather than somebody else's.
+//
+//  It has no effect on Average Neutral or Maximum Neutral, which do not
+//  weight by the size of the excess - only Additive Mask and the mask
+//  display use it.
+//
+//  Reproduce with examples/prototype_astro_dctl.py, but read the caveat
+//  in its docstring first: it decodes to camera primaries, so its
+//  figures are the 0.017 kind, not the 0.034 kind.
+//
 //  INSTALLATION:
 //  Project Settings -> Color Management -> "Open LUT Folder",
 //  drop the file in there, click "Update Lists".
@@ -39,7 +81,7 @@
 
 DEFINE_UI_PARAMS(method,   Method,             DCTLUI_COMBO_BOX,    0, {AVG_NEUTRAL, MAX_NEUTRAL, ADD_MASK}, {Average Neutral, Maximum Neutral, Additive Mask})
 DEFINE_UI_PARAMS(amount,   Amount,             DCTLUI_SLIDER_FLOAT, 1.0f, 0.0f, 1.0f,  0.01f)
-DEFINE_UI_PARAMS(preserve, Preserve Luminance, DCTLUI_CHECK_BOX,    0)
+DEFINE_UI_PARAMS(excfull,  Excess Full Scale,  DCTLUI_SLIDER_FLOAT, 0.034f, 0.001f, 0.5f, 0.001f)
 DEFINE_UI_PARAMS(showmask, Show Mask,          DCTLUI_CHECK_BOX,    0)
 DEFINE_UI_PARAMS(bypass,   Bypass,             DCTLUI_CHECK_BOX,    0)
 
@@ -53,6 +95,10 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     if (bypass) return make_float3(r, g, b);
 
     float a = _clampf(amount, 0.0f, 1.0f);
+
+    // The excess that counts as full scale. Guarded so the divisions
+    // below cannot meet a zero even if the slider range ever changes.
+    float fs = _fmaxf(excfull, 1e-4f);
 
     // Reference value that green must not exceed
     float limit;
@@ -68,31 +114,30 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     if (method == 2)
     {
         float excess = g - limit;
-        float soft   = _clampf(excess * 4.0f, 0.0f, 1.0f);
+        float soft   = _clampf(excess / fs, 0.0f, 1.0f);
         w = a * soft;
     }
 
     float g_out = g * (1.0f - w) + g_new * w;
 
-    // How much green was removed - used for the mask display and for
-    // the luminance compensation
+    // How much green was removed - what the mask display shows
     float removed = g - g_out;
 
     if (showmask)
     {
-        float m = _clampf(removed * 8.0f, 0.0f, 1.0f);
+        float m = _clampf(removed / fs, 0.0f, 1.0f);
         return make_float3(m, m, m);
     }
 
-    // Optional: redistribute the removed brightness onto red and blue
-    // so the image does not get darker overall. Tends towards magenta -
-    // only use it when the brightness loss is actually a problem.
-    if (preserve && removed > 0.0f)
-    {
-        float share = removed * 0.5f;
-        r = r + share;
-        b = b + share;
-    }
+    // There was a "Preserve Luminance" checkbox here that added half the
+    // removed green onto red and blue. It was removed in v0.2.0 - see
+    // issue #30. Measured, it returned 19.9 % of the luminance it took
+    // away, because green carries a Rec.709 weight of 0.7152 while red
+    // and blue together carry 0.2848. Doing the job properly would need
+    // 2.51 * removed on each, five times as much, which drives the image
+    // hard into magenta. The control could not be made to do what its
+    // name said, and the fifth it did deliver is better handled by the
+    // Shadow Lift in AstroStretch, earlier in the chain.
 
     return make_float3(r, g_out, b);
 }

@@ -38,12 +38,29 @@
 //
 //  The default of 0.017 is the 95th percentile of the green excess
 //  measured over the sky of three light-polluted 13 s ISO 1000 frames,
-//  after AstroStretch at the default Arcsinh 25. Reproduce it with
-//  examples/prototype_astro_dctl.py.
+//  after AstroStretch at its default Arcsinh 25.
 //
-//  Lower it if "Additive Mask" is too weak or the mask stays dark;
-//  raise it on a heavier cast. It has no effect on Average Neutral or
-//  Maximum Neutral, which do not weight by the size of the excess.
+//  IT SCALES WITH THE STRETCH. A harder stretch produces a larger
+//  excess, so the default only fits the default. Measured on the same
+//  frame:
+//
+//      Arcsinh 25    excess p95 0.017   <- the default
+//      Arcsinh 137   excess p95 0.045
+//
+//  At Arcsinh 137 with this left at 0.017, "Additive Mask" removes 91 %
+//  of what Average Neutral removes - barely a gentler method any more -
+//  and the mask clips to solid white over most of the sky. Raise it.
+//
+//  HOW TO SET IT: tick "Show Mask" with Amount at 1.0 and raise this
+//  until the mask stops clipping to flat white and starts showing
+//  structure. What you are looking at is where the green sits, so it
+//  should read as a picture of the cast, not as a white field.
+//
+//  It has no effect on Average Neutral or Maximum Neutral, which do not
+//  weight by the size of the excess - only Additive Mask and the mask
+//  display use it.
+//
+//  Reproduce any of the above with examples/prototype_astro_dctl.py.
 //
 //  INSTALLATION:
 //  Project Settings -> Color Management -> "Open LUT Folder",

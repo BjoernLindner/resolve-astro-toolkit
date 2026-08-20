@@ -190,6 +190,10 @@ AVG_NEUTRAL, MAX_NEUTRAL, ADD_MASK = 0, 1, 2
 # an equivalent of 0.25 for the blend and 0.125 for the display, both an
 # order of magnitude above the measured excess - see #29. The default here
 # tracks the DCTL default.
+#
+# It scales with the stretch: on the test frame the excess p95 is 0.017 at
+# Arcsinh 25 and 0.045 at Arcsinh 137. Run this script with --stretch to
+# see what a given grade needs.
 EXCESS_FULL_SCALE = 0.017
 
 

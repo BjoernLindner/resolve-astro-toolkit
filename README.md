@@ -75,6 +75,8 @@ Print
 
 The long version, including where in the node tree each tool belongs and why the order matters, is in [docs/workflow.md](docs/workflow.md).
 
+For a worked walkthrough with screenshots and real values — camera RAW to stretched image — see [Developing a single Milky Way frame in Resolve](https://github.com/BjoernLindner/resolve-astro-toolkit/wiki/Developing-a-single-Milky-Way-frame-in-Resolve) in the wiki.
+
 ## Contributing
 
 Way of working, commit format and the licensing constraint are in [CONTRIBUTING.md](CONTRIBUTING.md). Open points are tracked as [issues](https://github.com/BjoernLindner/resolve-astro-toolkit/issues).

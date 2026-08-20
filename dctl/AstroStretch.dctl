@@ -75,6 +75,28 @@ DEFINE_UI_PARAMS(bypass,      Bypass,                DCTLUI_CHECK_BOX,      0)
 //  asinh(v) = log(v + sqrt(v*v + 1)), for v >= 0.
 //  Written out because the DCTL runtime does not expose an inverse
 //  hyperbolic sine - only _sinhf/_coshf/_tanhf are available.
+//
+//  PRECISION, so this does not get measured and filed again:
+//  in float64 this identity is good to about 6e-10, and that figure
+//  was published for v0.1.0. A DCTL runs in float32, where it is not.
+//  For small v, v*v falls below the float32 epsilon of 1.19e-7, so
+//  sqrt(v*v + 1) returns exactly 1, the sum becomes 1 + v, and
+//  log(1 + v) loses most of its digits to cancellation. Measured
+//  against a float64 reference over the range this function is
+//  actually called with:
+//
+//      Arcsinh Stretch 25    max relative error 1.35e-3 at v = 1.2e-5
+//      Arcsinh Stretch 400   max relative error 3.3e-4
+//      above v = 1           1.4e-7, i.e. float32 epsilon
+//
+//  This is deliberately not corrected. The error is largest exactly
+//  where the signal is smallest - at v = 1.2e-5 with stretch 25 the
+//  output is around 3.2e-6, so 0.135 % of it is an absolute error of
+//  about 4e-9, far below what any display, export or print carries.
+//  The fix would be a series expansion for small v, which buys nothing
+//  measurable and puts a branch in a per-pixel function.
+//
+//  Reproduce with examples/prototype_astro_dctl.py. See issue #32.
 // ---------------------------------------------------------------------
 __DEVICE__ float astro_asinh(float v)
 {

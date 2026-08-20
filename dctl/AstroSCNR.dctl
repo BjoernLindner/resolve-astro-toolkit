@@ -36,31 +36,41 @@
 //  cast is a small number and both of those had it hardcoded, at a
 //  value an order of magnitude too large - see issue #29.
 //
-//  The default of 0.017 is the 95th percentile of the green excess
-//  measured over the sky of three light-polluted 13 s ISO 1000 frames,
-//  after AstroStretch at its default Arcsinh 25.
+//  The default of 0.034 is the 95th percentile of the positive green
+//  excess over the sky, read off a 16-bit export out of Resolve itself,
+//  through the colour management INSTALL.md describes, with AstroStretch
+//  ahead of it at its own default of Arcsinh 25.
 //
-//  IT SCALES WITH THE STRETCH. A harder stretch produces a larger
-//  excess, so the default only fits the default. Measured on the same
-//  frame:
+//  MEASURE IT IN THE PIPELINE YOU GRADE IN. The same frame decoded
+//  straight from raw into camera primaries gives 0.017 - half as much.
+//  Primaries change the ratios between the channels, and this control is
+//  a difference between channels, so a figure taken from a raw decode
+//  does not carry into Resolve. Getting that wrong once is the reason
+//  this comment is as long as it is.
 //
-//      Arcsinh 25    excess p95 0.017   <- the default
-//      Arcsinh 137   excess p95 0.045
+//  IT ALSO SCALES WITH THE STRETCH. A harder stretch produces a larger
+//  excess. Same frame, same pipeline:
 //
-//  At Arcsinh 137 with this left at 0.017, "Additive Mask" removes 91 %
-//  of what Average Neutral removes - barely a gentler method any more -
-//  and the mask clips to solid white over most of the sky. Raise it.
+//      Arcsinh 25    excess p95 0.034   <- the default
+//      Arcsinh 137   excess p95 0.077
+//
+//  Left too low, "Additive Mask" stops being the gentler method and the
+//  mask clips to solid white over most of the sky.
 //
 //  HOW TO SET IT: tick "Show Mask" with Amount at 1.0 and raise this
 //  until the mask stops clipping to flat white and starts showing
 //  structure. What you are looking at is where the green sits, so it
-//  should read as a picture of the cast, not as a white field.
+//  should read as a picture of the cast, not as a white field. That
+//  beats any number in this comment, because it measures your grade
+//  rather than somebody else's.
 //
 //  It has no effect on Average Neutral or Maximum Neutral, which do not
 //  weight by the size of the excess - only Additive Mask and the mask
 //  display use it.
 //
-//  Reproduce any of the above with examples/prototype_astro_dctl.py.
+//  Reproduce with examples/prototype_astro_dctl.py, but read the caveat
+//  in its docstring first: it decodes to camera primaries, so its
+//  figures are the 0.017 kind, not the 0.034 kind.
 //
 //  INSTALLATION:
 //  Project Settings -> Color Management -> "Open LUT Folder",
@@ -71,7 +81,7 @@
 
 DEFINE_UI_PARAMS(method,   Method,             DCTLUI_COMBO_BOX,    0, {AVG_NEUTRAL, MAX_NEUTRAL, ADD_MASK}, {Average Neutral, Maximum Neutral, Additive Mask})
 DEFINE_UI_PARAMS(amount,   Amount,             DCTLUI_SLIDER_FLOAT, 1.0f, 0.0f, 1.0f,  0.01f)
-DEFINE_UI_PARAMS(excfull,  Excess Full Scale,  DCTLUI_SLIDER_FLOAT, 0.017f, 0.001f, 0.5f, 0.001f)
+DEFINE_UI_PARAMS(excfull,  Excess Full Scale,  DCTLUI_SLIDER_FLOAT, 0.034f, 0.001f, 0.5f, 0.001f)
 DEFINE_UI_PARAMS(showmask, Show Mask,          DCTLUI_CHECK_BOX,    0)
 DEFINE_UI_PARAMS(bypass,   Bypass,             DCTLUI_CHECK_BOX,    0)
 

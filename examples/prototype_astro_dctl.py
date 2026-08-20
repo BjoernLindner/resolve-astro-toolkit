@@ -31,13 +31,30 @@ WHAT THIS IS NOT
 
 Not a substitute for testing in Resolve. Two differences matter:
 
-  - The decode here goes to the camera's native primaries (dcraw -o 0),
-    while Resolve routes through a CST into DaVinci Wide Gamut. Absolute
-    levels differ; on the test material the sky lands at about 10.7 %
-    here against the 13-25 % recorded from the Resolve session.
-  - Anything about how the image looks - star fringing, how much green
-    the foreground loses, whether real airglow survives - needs eyes on
-    a display.
+  - THE COLOUR SPACE IS NOT THE ONE YOU GRADE IN. The decode here goes
+    to the camera's native primaries (dcraw -o 0), while Resolve routes
+    through a CST into DaVinci Wide Gamut and out again. This is not a
+    detail. Measured on the same frame at Arcsinh 25, against a 16-bit
+    export out of Resolve:
+
+                              here      Resolve
+        sky luminance         10.7 %     13.9 %
+        green excess p95      0.017      0.034
+
+    Levels differ by about a third, and the green excess - a difference
+    between channels, so directly sensitive to the primaries - by a
+    factor of two. A control value found here does not carry over. That
+    happened once already, to the Excess Full Scale default, and #34
+    carries the correction.
+
+    The Resolve column is what the release notes' 13-25 % sky figure was
+    always describing, so the two agree once the routes are named.
+
+  - Anything about how the image looks - how much green the foreground
+    loses, whether real airglow survives - needs eyes on a display.
+    Star colour is the exception: AstroSCNR only ever lowers green and
+    never raises red or blue, verified bit-exact on a Resolve export, so
+    it cannot fringe stars towards magenta by construction.
 
 KEEPING IT HONEST
 
@@ -188,13 +205,14 @@ AVG_NEUTRAL, MAX_NEUTRAL, ADD_MASK = 0, 1, 2
 # Excess Full Scale: the green excess at which Additive Mask reaches full
 # strength and Show Mask reaches white. Until v0.2.0 this was hardcoded at
 # an equivalent of 0.25 for the blend and 0.125 for the display, both an
-# order of magnitude above the measured excess - see #29. The default here
-# tracks the DCTL default.
+# order of magnitude above the measured excess - see #29.
 #
-# It scales with the stretch: on the test frame the excess p95 is 0.017 at
-# Arcsinh 25 and 0.045 at Arcsinh 137. Run this script with --stretch to
-# see what a given grade needs.
-EXCESS_FULL_SCALE = 0.017
+# This tracks the DCTL default, which is measured in Resolve's pipeline.
+# In THIS script's camera-primaries decode the equivalent figure is about
+# half, so the DCTL default is deliberately too large for the numbers
+# printed below - see the colour space caveat in the module docstring.
+# The analysis prints the ratio at both scales rather than picking one.
+EXCESS_FULL_SCALE = 0.034
 
 
 def astro_scnr(img, method=AVG_NEUTRAL, amount=1.0, excess_full_scale=EXCESS_FULL_SCALE):
@@ -271,37 +289,46 @@ def analyse(path, stretch=25.0, blackpoint=0.0):
     #     The v0.1.0 constant of 4.0 is an Excess Full Scale of 0.25, kept
     #     here as the regression it was.
     _, rem_avg = astro_scnr(st, method=AVG_NEUTRAL, amount=1.0)
-    _, rem_add = astro_scnr(st, method=ADD_MASK, amount=1.0)
-    _, rem_old = astro_scnr(st, method=ADD_MASK, amount=1.0, excess_full_scale=0.25)
-    soft = np.clip(excess / EXCESS_FULL_SCALE, 0.0, 1.0)[excess > 0]
-    print(f"\nAdditive Mask, Excess Full Scale {EXCESS_FULL_SCALE}")
-    print(f"  mean weight on green-excess pixels  {soft.mean():.4f}")
-    print(f"  share reaching full weight          {(soft >= 0.99).mean():.4%}")
-    print(f"  mean green removed, Average Neutral {rem_avg.mean():.6f}")
-    print(f"  mean green removed, Additive Mask   {rem_add.mean():.6f}")
-    print(f"  Additive Mask does {rem_add.mean() / max(rem_avg.mean(), 1e-12):.1%} of Average Neutral")
-    print(f"  at the v0.1.0 equivalent of 0.25 it did {rem_old.mean() / max(rem_avg.mean(), 1e-12):.1%}")
-    print(f"  full scale matching p95 of the excess: {p95:.4f}")
+    print(f"\nAdditive Mask, at three full-scale values")
+    print(f"  mean green removed, Average Neutral   {rem_avg.mean():.6f}")
+    for label, fs in (
+        (f"DCTL default {EXCESS_FULL_SCALE}, from Resolve", EXCESS_FULL_SCALE),
+        (f"p95 of this decode, {p95:.4f}", float(p95)),
+        ("v0.1.0 equivalent, 0.25", 0.25),
+    ):
+        _, rem = astro_scnr(st, method=ADD_MASK, amount=1.0, excess_full_scale=fs)
+        soft = np.clip(excess / fs, 0.0, 1.0)[excess > 0]
+        print(
+            f"  {label:<38} {rem.mean() / max(rem_avg.mean(), 1e-12):6.1%} of Average Neutral"
+            f"   (mean weight {soft.mean():.3f})"
+        )
+    print("  The DCTL default is measured in Resolve's pipeline, where the excess")
+    print("  is about twice what it is here - so it reads low in this column.")
 
     # --- Show Mask has to be legible, not near-black
-    m = show_mask(rem_avg)
-    print(f"\nShow Mask, Excess Full Scale {EXCESS_FULL_SCALE}")
-    for q in (50, 90, 99, 99.9):
-        print(f"  p{q:<5} {np.percentile(m, q):.4f}")
-    print(f"  share above 0.1  {(m > 0.1).mean():.4%}")
-    m_old = show_mask(rem_avg, excess_full_scale=0.125)
-    print(f"  at the v0.1.0 equivalent of 0.125: median {np.median(m_old):.4f},"
-          f" share above 0.1 {(m_old > 0.1).mean():.4%}")
+    print("\nShow Mask legibility, share of sky above 0.1")
+    for label, fs in (
+        (f"DCTL default {EXCESS_FULL_SCALE}", EXCESS_FULL_SCALE),
+        (f"p95 of this decode, {p95:.4f}", float(p95)),
+        ("v0.1.0 equivalent, 0.125", 0.125),
+    ):
+        m = show_mask(rem_avg, excess_full_scale=fs)
+        print(f"  {label:<38} {(m > 0.1).mean():6.2%}   median {np.median(m):.4f}")
 
-    # --- method ordering: (R+B)/2 <= max(R,B), so Average must be stronger
+    # --- method ordering: (R+B)/2 <= max(R,B), so Average must be stronger.
+    #     The Additive Mask guards run at the full scale this decode's
+    #     colour space calls for, not at the DCTL default, which is set for
+    #     Resolve's - otherwise they would test the wrong thing.
     _, rem_max = astro_scnr(st, method=MAX_NEUTRAL, amount=1.0)
+    _, rem_add = astro_scnr(st, method=ADD_MASK, amount=1.0, excess_full_scale=float(p95))
+    ratio = rem_add.mean() / max(rem_avg.mean(), 1e-12)
     print("\nMethod strength")
     print(f"  mean removed, Average Neutral {rem_avg.mean():.6f}")
     print(f"  mean removed, Maximum Neutral {rem_max.mean():.6f}")
     print(f"  Average stronger than Maximum: {rem_avg.mean() > rem_max.mean()}")
-    print(f"  Additive Mask gentler than Average Neutral: {rem_add.mean() < rem_avg.mean()}")
-    print(f"  Additive Mask not switched off (above 20 %): "
-          f"{rem_add.mean() / max(rem_avg.mean(), 1e-12) > 0.20}")
+    print(f"  at full scale {p95:.4f}, matched to this decode:")
+    print(f"    Additive Mask gentler than Average Neutral: {rem_add.mean() < rem_avg.mean()}")
+    print(f"    Additive Mask not switched off (above 20 %): {ratio > 0.20}")
 
 
 def main():

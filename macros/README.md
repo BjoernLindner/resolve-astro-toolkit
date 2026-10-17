@@ -90,14 +90,17 @@ SkyMask ─────────┘  (effect mask: sky = white, foreground = 
 **Inside the macro:**
 
 ```
-AGIn ─┬─ ModelDown ── StarFilter ── Smooth ── ModelUp ─┬─ Strength ─┐
-      │  (Scale,      (RankFilter,  (Blur,    (Resize  │  (gain)     │
-      │   Box)         rank 0.5)     Gaussian) Cubic)  │             ▼
-      └────────────────────────────────────────────────┼──────► Subtract ── Pedestal ──► ShowModel ──► out
-                                                       │        (masked)    (masked)       ▲
-                                                       └───────────────────────────────────┘
-AGMask ──► effect mask of Subtract and Pedestal
+AGIn ─┬─ ModelWeight ── ModelDown ── Normalize ── StarFilter ── Reweight ── Smooth ── ModelNorm ── ModelUp ─┬─ Strength ─┐
+      │  (MatteControl: (Scale,      (Alpha      (RankFilter,  (Alpha      (Blur,    (Alpha       (Resize   │  (gain)     │
+      │   α = mask,      Box)         Divide)     rank 0.5)     Multiply)   Gaussian) Divide)      Cubic)   │             ▼
+      │   RGB × α)                                                                                         │
+      └────────────────────────────────────────────────────────────────────────────────────────────────────┼──► Subtract ── Pedestal ──► ShowModel ──► out
+                                                                                                           │    (masked)    (masked)       ▲
+                                                                                                           └───────────────────────────────┘
+AGMask ──► garbage matte of ModelWeight (inverted), effect mask of Subtract and Pedestal
 ```
+
+**The mask-aware model.** The background model is a normalised convolution: `model = Blur(Down(input × mask)) / Blur(Down(mask))`. `ModelWeight` writes the mask into alpha and premultiplies, so the downscale and the blur carry `input × mask` in RGB and `mask` in alpha side by side, and `ModelNorm` divides the two. Pixels outside the mask therefore have no weight in the model at all — the dark foreground can no longer pull it down near the horizon. The star median runs on the normalised low-resolution image (`Normalize` → `StarFilter` → `Reweight`), so it compares sky values with sky values. Where the blurred mask is 0 (deep in the foreground, far from any sky) `AlphaDivide` returns 0; the model is not used there because the subtraction is masked. With the effect mask unconnected, alpha is 1 everywhere and the model is the plain blurred median, as before.
 
 **Controls and their Fusion values.** The prototype's OpenCV units do not carry over 1:1. Both were pinned by rendering each Fusion stage to EXR and fitting it against the OpenCV operation applied to the *same* `MediaIn` frame:
 
@@ -109,7 +112,7 @@ AGMask ──► effect mask of Subtract and Pedestal
 | Strength | `Strength.Gain` on the model branch | **1.0** | `result = input − Strength × model + Pedestal` |
 | Pedestal | `Pedestal.Brightness` | **0.01** | Scalar offset in linear units, same on all channels. `0.35 × mean(model)` = 0.0102 on this frame; set it by the outcome, see below |
 | Show Model | `ShowModel.Mix` | **0** | 0 = corrected image, 1 = model, 0.5 = both blended |
-| Effect Mask | `AGMask` → `Subtract` and `Pedestal` | — | Unconnected = whole frame. Outside the mask the input passes through untouched (verified bit-exact) |
+| Effect Mask | `AGMask` → `ModelWeight` (model weighting), `Subtract` and `Pedestal` | — | Unconnected = whole frame, plain model. Connected: the model is built from the masked sky only, and outside the mask the input passes through untouched (verified bit-exact) |
 
 **Pedestal in practice.** Resolve's RAW decode is scaled differently from the dcraw decode the prototype ran on, so the prototype's "1.7–2 %" sky figure does not transfer. What matters is the sky after the full grade: on this frame, with the node chain from `docs/workflow.md` unchanged, Pedestal **0.015** puts the stretched sky background at **11 %** (p10–p90: 9–13 %), inside the 8–15 % target. 0.01 gave 7.5 %, 0.02 gave 14 %.
 
@@ -122,7 +125,31 @@ AGMask ──► effect mask of Subtract and Pedestal
 | Macro output vs hand-built graph, at default, Show Model 1 and Strength 0.5 | bit-exact |
 | Sky flatness, 8×8 block medians above the treeline | max/min **7.9 → 1.22**, coefficient of variation 0.42 → 0.03 |
 
-**Known limit — the horizon.** Directly above the treeline a bright rim of light pollution remains. Two causes, both measured: the glow rises too steeply there for a model this smooth (at the image centre the input climbs from 0.09 to 0.16 over the last 4 % of image height, the model only reaches 0.07), and the dark foreground pulls the model down in exactly that zone, because the blur averages trees into it. The effect mask keeps the trees from being darkened but cannot repair a model that already contains them. The fix is a mask-aware model — blur `image × mask` and `mask` separately and divide — which belongs with the sky mask work in #3.
+**Verification of the mask-aware model** (same frame, `SkyMask` polygon as effect mask, Pedestal 0.015, every stage rendered to EXR and compared in numpy):
+
+| Check | Result |
+|---|---|
+| `ModelWeight` RGB vs `input × alpha`, alpha vs mask | bit-exact |
+| `Normalize`, `Reweight`, `ModelNorm` vs numpy divide/multiply | ≤ 2.4 × 10⁻⁷ (alpha ≤ 0 → 0) |
+| Model vs numpy `Blur(Down(input × mask)) / Blur(Down(mask))`, sky interior | 0.1 % relative RMS |
+| Macro output vs `input − mask × model + mask × Pedestal` | max error 1.1 × 10⁻⁵ |
+| Macro output outside the mask vs input | bit-exact |
+| Effect mask unconnected vs the previous plain model | max error 2.4 × 10⁻⁷ |
+| Sky flatness, 8×8 block medians above the treeline (old → mask-aware) | max/min 1.18 → **1.10**, coefficient of variation 0.023 → 0.016 |
+
+**Known limit — the horizon.** Directly above the treeline a thin bright rim of light pollution remains. There were two causes. The dark foreground pulled the model down in exactly that zone, because the blur averaged trees into it — the mask-aware model removes that one. The other is inherent: the glow rises too steeply there for a model this smooth. At the image centre the input climbs from 0.08 to 0.15 over the last 5 % of image height, while the model's resolution is 24 px blocks blurred over σ ≈ 6 blocks (~145 px).
+
+Corrected sky luminance at the image centre (x = 0.5; the treeline there is at y ≈ 0.96; sky target ≈ 0.015):
+
+| y | 0.90 | 0.92 | 0.93 | 0.94 | 0.95 |
+|---|---|---|---|---|---|
+| Input | 0.081 | 0.098 | 0.113 | 0.134 | 0.149 |
+| Plain model | 0.011 | 0.024 | 0.040 | 0.066 | 0.089 |
+| Mask-aware model | 0.008 | **0.014** | 0.023 | 0.038 | 0.050 |
+
+The rim is about halved and now confined to the last ~2 % of image height (~100 px); at x = 0.3 and 0.7, where the horizon glow is weak, the sky stays at 0.012–0.015 down to the mask edge. A smaller Softness tracks the glow a little closer (numpy on the same frame: Softness 19 → 0.026 / 0.036 at y = 0.94 / 0.95) but risks pulling the Milky Way into the model, so the default stays at 38. What is left is local and is better handled with a second, narrow correction on the Color page than by making the global model less smooth.
+
+**The mask has to sit on the real horizon.** The model only ignores what the mask excludes, and the subtraction only reaches what the mask includes. A mask edge that sits above the treeline leaves the brightest band of the glow uncorrected; one that reaches into the trees lets them into the model and darkens them. Put the soft edge's 50 % point on the silhouette and keep the feather narrow (the test polygon uses Soft Edge 0.004).
 
 ---
 

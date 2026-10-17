@@ -1,6 +1,6 @@
 # Fusion macros — development status
 
-Two macros are planned. Neither is **finished** yet — what follows is the build plan, the reasoning behind the construction, and the current status.
+Two macros are planned. `AstroGradient` is built ([`AstroGradient.setting`](AstroGradient.setting)); `AstroStarReduce` is not yet — what follows is the build plan, the reasoning behind the construction, and the current status of each.
 
 Why macros and not DCTLs: both operations need **two images at the same time** (the original and a model derived from it), and that is exactly what a DCTL cannot do — it only ever sees one input image. In Fusion this is a node graph with two branches.
 
@@ -67,19 +67,62 @@ The second failure mode with nightscapes: **the foreground.** A dark landscape i
 
 ### Status
 
-🚧 The parameters are now measured and confirmed against real image material (see above); the Fusion node graph itself has not been built yet — that cannot be done blind, because Fusion's `.setting` files cannot be generated from outside without risk (one wrong serialisation detail → the file will not import, or imports incorrectly without it being immediately visible). Next step: rebuild the graph below by hand in Fusion, with exactly these starting values, then export it as a macro.
+✅ Built and verified in Resolve Studio 21.1.1 on `_DSC5411.ARW`: [`AstroGradient.setting`](AstroGradient.setting).
 
-**Build instructions for Fusion (node by node):**
+**How the file came about.** The node graph was built in a live Fusion comp through the scripting API, and its tool definitions were written out by Fusion's own serialiser (`comp:CopySettings()` + `bmd.writefile()`). Only the `MacroOperator` wrapper — the exposed controls, the mask router and the `Model Size` user control — was added by hand. The finished file was then pasted back into a comp and rendered: its output is **bit-identical** to the hand-built graph, so the hand-authoring risk this section used to warn about is closed by test, not by care.
 
-1. `Resize` — to 1/24 of the original size (so about 252×168 at 6048×4024), filter *Area* or *Box*
-2. `RankFilter` — rank 0.5 (median), window size 5
-3. `Blur` — type *Fast Gaussian*, blend radius set experimentally to match sigma 6 on the small level (Fusion parametrises by radius, not sigma — so: try until the model image is free of band structure)
-4. `Resize` — back to the original size, filter *Bicubic* or *Catmull-Rom*
-5. `ChannelBooleans` — operation *Subtract*, original minus the result of step 4
-6. `BrightnessContrast` or `ColorCorrector` — raise the offset by about 35 % of the mean model value (pedestal)
-7. Put the effect mask input of the whole macro on a softly falling-off sky mask (leave the foreground untouched)
+**Installing.** Copy `AstroGradient.setting` to
 
-Group nodes 1–4, right-click → *Macro* → *Create Macro*, export the `.setting` into the `macros/` directory and commit it here.
+```
+~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Macros/
+```
+
+It then appears in Fusion under *Add Tool → Macros*.
+
+**Where it sits in Resolve.** A Fusion macro cannot live in a Color page node. It runs on the **Fusion page** of the clip, and the Fusion page is processed *before* the Color page — so the macro still sees the linear Camera Raw decode and still runs before `AstroStretch`, exactly as [`docs/workflow.md`](../docs/workflow.md) requires for node 03. Node 03 on the Color page becomes redundant and can be disabled.
+
+```
+MediaIn ──► AstroGradient ──► MediaOut
+                 ▲
+SkyMask ─────────┘  (effect mask: sky = white, foreground = black)
+```
+
+**Inside the macro:**
+
+```
+AGIn ─┬─ ModelDown ── StarFilter ── Smooth ── ModelUp ─┬─ Strength ─┐
+      │  (Scale,      (RankFilter,  (Blur,    (Resize  │  (gain)     │
+      │   Box)         rank 0.5)     Gaussian) Cubic)  │             ▼
+      └────────────────────────────────────────────────┼──────► Subtract ── Pedestal ──► ShowModel ──► out
+                                                       │        (masked)    (masked)       ▲
+                                                       └───────────────────────────────────┘
+AGMask ──► effect mask of Subtract and Pedestal
+```
+
+**Controls and their Fusion values.** The prototype's OpenCV units do not carry over 1:1. Both were pinned by rendering each Fusion stage to EXR and fitting it against the OpenCV operation applied to the *same* `MediaIn` frame:
+
+| Control | Fusion input | Default | How it maps to the prototype |
+|---|---|---|---|
+| Model Size | `ModelDown` user control, `XSize = 1/ModelSize` | **24** | Same divisor. Fusion's `Scale` rounds up (6024×4024 → 252×168, OpenCV floors to 251×167) — irrelevant after the blur |
+| Star Filter | `StarFilter.Size` | **2** | Size is a radius: **2 ≙ `medianBlur` ksize 5** (closest fit of sizes 1–3) |
+| Softness | `Smooth.XBlurSize`, filter *Gaussian* | **38** | Fusion's Gaussian Blur Size ≈ **6.3 × σ** (fitted over sizes 12–60, interior error < 0.05 %). σ 6 → 38. Edges are clamped, not mirrored as in OpenCV |
+| Strength | `Strength.Gain` on the model branch | **1.0** | `result = input − Strength × model + Pedestal` |
+| Pedestal | `Pedestal.Brightness` | **0.01** | Scalar offset in linear units, same on all channels. `0.35 × mean(model)` = 0.0102 on this frame; set it by the outcome, see below |
+| Show Model | `ShowModel.Mix` | **0** | 0 = corrected image, 1 = model, 0.5 = both blended |
+| Effect Mask | `AGMask` → `Subtract` and `Pedestal` | — | Unconnected = whole frame. Outside the mask the input passes through untouched (verified bit-exact) |
+
+**Pedestal in practice.** Resolve's RAW decode is scaled differently from the dcraw decode the prototype ran on, so the prototype's "1.7–2 %" sky figure does not transfer. What matters is the sky after the full grade: on this frame, with the node chain from `docs/workflow.md` unchanged, Pedestal **0.015** puts the stretched sky background at **11 %** (p10–p90: 9–13 %), inside the 8–15 % target. 0.01 gave 7.5 %, 0.02 gave 14 %.
+
+**Verification on `_DSC5411.ARW`** (6024×4024, Resolve RAW decode, linear float):
+
+| Check | Result |
+|---|---|
+| Model vs prototype pipeline on the same input, image interior | 0.8 % relative RMS (6.7 % including the outer 200 px, where the edge modes differ) |
+| `Subtract` output vs `input − model` | bit-exact |
+| Macro output vs hand-built graph, at default, Show Model 1 and Strength 0.5 | bit-exact |
+| Sky flatness, 8×8 block medians above the treeline | max/min **7.9 → 1.22**, coefficient of variation 0.42 → 0.03 |
+
+**Known limit — the horizon.** Directly above the treeline a bright rim of light pollution remains. Two causes, both measured: the glow rises too steeply there for a model this smooth (at the image centre the input climbs from 0.09 to 0.16 over the last 4 % of image height, the model only reaches 0.07), and the dark foreground pulls the model down in exactly that zone, because the blur averages trees into it. The effect mask keeps the trees from being darkened but cannot repair a model that already contains them. The fix is a mask-aware model — blur `image × mask` and `mask` separately and divide — which belongs with the sky mask work in #3.
 
 ---
 
@@ -168,8 +211,8 @@ Procedure:
 
 1. ✅ Node graph computed through as a Python/OpenCV prototype on three real Milky Way RAWs (Björn's captures, 2026-08-17) — see [`examples/prototype_astro_macros.py`](../examples/prototype_astro_macros.py)
 2. ✅ Sensible value ranges and defaults determined — see the "Measured parameters" tables above for both macros
-3. ⬜ Build the node graph by hand in Fusion with exactly these starting values, verify against the same images
-4. ⬜ Group the nodes and export as a macro (right-click → *Macro* → *Create Macro*)
-5. ⬜ Commit the exported `.setting` here
+3. Build the node graph in Fusion with exactly these starting values, verify against the same images — ✅ `AstroGradient`, ⬜ `AstroStarReduce`
+4. Wrap the nodes as a macro and verify the file by re-importing it — ✅ `AstroGradient`, ⬜ `AstroStarReduce`
+5. Commit the `.setting` here — ✅ `AstroGradient`, ⬜ `AstroStarReduce`
 
 **Why the detour through Python instead of going straight to Fusion:** finding the parameters (how large is "large"? how much structure does a rank filter really eat?) can be iterated faster and measured exactly (see the percentages in the tables) in an environment with numpy/OpenCV than by eye in the Fusion viewer. The actual node graph in Fusion still has to be built — Fusion's `.setting` format cannot be generated blind without risk, that has to happen in the application itself.

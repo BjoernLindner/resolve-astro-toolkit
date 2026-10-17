@@ -48,7 +48,7 @@ A proposal that follows from the ordering logic:
 |---|---|---|
 | 01 | **CST** Camera Raw output → output primaries, **Linear** gamma, tone mapping *None*<br>*(not needed if the RAW is already decoded to linear)* | Everything that follows assumes linear data — and this is where the gamut conversion belongs, see below |
 | 02 | Spatial NR *(Studio)* | Chroma noise out early, while it is still Gaussian |
-| 03 | **AstroGradient** | Remove residual gradients **before** stretching |
+| 03 | **AstroGradient** | Remove residual gradients **before** stretching. It is a Fusion macro, so it runs on the clip's Fusion page, which Resolve processes before the Color page — the Color node stays empty |
 | 04 | **AstroStretch** (arcsinh) | The first, strong stretch |
 | 05 | **AstroStretch** (MTF, gentle) | Fine tuning — two gentle stretches beat one aggressive one |
 | 06 | **AstroSCNR** | The green cast, which has only now become visible |

@@ -4,7 +4,7 @@ Astro image processing tools for **DaVinci Resolve Studio** — DCTLs and Fusion
 
 Built for Milky Way nightscapes destined for large-format print.
 
-> **Status: early.** The DCTLs work — `AstroStretch` is verified end to end on real material in Resolve Studio 21. `AstroSCNR` has now been measured against the same material: the correction itself is sound, and two controls that were not were fixed in v0.2.0 ([#29](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/29), [#30](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/30)). What is still open there is the visual half — star fringing, foreground, airglow ([#28](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/28)). The Fusion macros are not built — see [macros/README.md](macros/README.md).
+> **Status: early.** The DCTLs work — `AstroStretch` is verified end to end on real material in Resolve Studio 21. `AstroSCNR` has now been measured against the same material: the correction itself is sound, and two controls that were not were fixed in v0.2.0 ([#29](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/29), [#30](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/30)). What is still open there is the visual half — star fringing, foreground, airglow ([#28](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/28)). `AstroGradient` is built as a Fusion macro and verified on the test frame; `AstroStarReduce` is not built yet — see [macros/README.md](macros/README.md).
 
 ---
 
@@ -36,7 +36,7 @@ Where this toolkit earns its place is **after** Siril: local refinement, masked 
 |---|---|---|---|
 | [`AstroStretch`](dctl/AstroStretch.dctl) | DCTL | ✅ working — **the core tool** | Arcsinh and MTF (midtone transfer) stretching with colour preservation, highlight protection and a clip warning. Without it, linear astro data cannot be developed in Resolve at all |
 | [`AstroSCNR`](dctl/AstroSCNR.dctl) | DCTL | ✅ measured on real material — visual check open ([#28](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/28)) | Subtractive chromatic noise reduction — removes the green cast every stretched astro image develops. Unlike Siril's, it can be masked to the sky |
-| `AstroGradient` | Fusion macro | 🚧 in development | Local gradient subtraction via a median/blur background model. A maskable residual correction alongside GraXpert or Siril, not a replacement for either |
+| [`AstroGradient`](macros/AstroGradient.setting) | Fusion macro | ✅ built and verified on real material — horizon limit open ([#3](https://github.com/BjoernLindner/resolve-astro-toolkit/issues/3)) | Local gradient subtraction via a median/blur background model. A maskable residual correction alongside GraXpert or Siril, not a replacement for either |
 | `AstroStarReduce` | Fusion macro | ⚠️ experimental | Morphological star reduction (rank-filter opening). On dense Milky Way fields it cannot tell stars from fine nebula structure — at a window of 5 px it removes 90 % of the star pixels and 77 % of the real structure with them ([measurements](macros/README.md#the-limit-honestly)) |
 
 ### What you also need

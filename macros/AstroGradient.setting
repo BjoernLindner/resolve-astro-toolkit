@@ -1,0 +1,205 @@
+{
+	Tools = ordered() {
+		AstroGradient = MacroOperator {
+			CtrlWZoom = false,
+			NameSet = true,
+			Inputs = ordered() {
+				Input = InstanceInput {
+					SourceOp = "AGIn",
+					Source = "Input",
+				},
+				EffectMask = InstanceInput {
+					SourceOp = "AGMask",
+					Source = "Input",
+					Name = "Effect Mask",
+				},
+				ModelSize = InstanceInput {
+					SourceOp = "ModelDown",
+					Source = "ModelSize",
+					Name = "Model Size",
+					Default = 24,
+				},
+				StarFilter = InstanceInput {
+					SourceOp = "StarFilter",
+					Source = "Size",
+					Name = "Star Filter",
+					Default = 2,
+				},
+				Softness = InstanceInput {
+					SourceOp = "Smooth",
+					Source = "XBlurSize",
+					Name = "Softness",
+					Default = 38,
+				},
+				Strength = InstanceInput {
+					SourceOp = "Strength",
+					Source = "Gain",
+					Name = "Strength",
+					Default = 1,
+				},
+				Pedestal = InstanceInput {
+					SourceOp = "Pedestal",
+					Source = "Brightness",
+					Name = "Pedestal",
+					Default = 0.01,
+				},
+				ShowModel = InstanceInput {
+					SourceOp = "ShowModel",
+					Source = "Mix",
+					Name = "Show Model",
+					Default = 0,
+				},
+			},
+			Outputs = {
+				Output = InstanceOutput {
+					SourceOp = "ShowModel",
+					Source = "Output",
+				},
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				AGIn = PipeRouter {
+					ViewInfo = PipeRouterInfo { Pos = { 0, 0 } },
+				},
+				AGMask = PipeRouter {
+					ViewInfo = PipeRouterInfo { Pos = { 660, -66 } },
+				},
+				ModelDown = Scale {
+					UserControls = ordered() {
+						ModelSize = {
+							LINKS_Name = "Model Size",
+							LINKID_DataType = "Number",
+							INPID_InputControl = "SliderControl",
+							INP_Default = 24,
+							INP_Integer = true,
+							INP_MinScale = 4,
+							INP_MaxScale = 64,
+							INP_MinAllowed = 1,
+							ICS_ControlPage = "Controls",
+						},
+					},
+					Inputs = {
+						ModelSize = Input { Value = 24 },
+						HiQOnly = Input { Value = 0 },
+						PixelAspect = Input { Value = { 1, 1 } },
+						FilterMethod = Input { Value = 1 },
+						XSize = Input {
+							Value = 0.0416666666666667,
+							Expression = "1/ModelSize",
+						},
+						Input = Input {
+							SourceOp = "AGIn",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 110, 49.5 } },
+				},
+				StarFilter = RankFilter {
+					Inputs = {
+						Size = Input { Value = 2 },
+						ProcessAlpha = Input { Value = 0 },
+						Input = Input {
+							SourceOp = "ModelDown",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 220, 49.5 } },
+				},
+				Smooth = Blur {
+					Inputs = {
+						Filter = Input { Value = FuID { "Gaussian" } },
+						XBlurSize = Input { Value = 38 },
+						ProcessAlpha = Input { Value = 0 },
+						Input = Input {
+							SourceOp = "StarFilter",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 330, 49.5 } },
+				},
+				ModelUp = BetterResize {
+					Inputs = {
+						HiQOnly = Input { Value = 0 },
+						PixelAspect = Input { Value = { 1, 1 } },
+						FilterMethod = Input { Value = 4 },
+						Width = Input {
+							Value = 6024,
+							Expression = "AGIn.Output.OriginalWidth",
+						},
+						Height = Input {
+							Value = 4024,
+							Expression = "AGIn.Output.OriginalHeight",
+						},
+						Input = Input {
+							SourceOp = "Smooth",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 440, 49.5 } },
+				},
+				Strength = BrightnessContrast {
+					Inputs = {
+						Gain = Input { Value = 1 },
+						Input = Input {
+							SourceOp = "ModelUp",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 550, 49.5 } },
+				},
+				Subtract = ChannelBoolean {
+					Inputs = {
+						Operation = Input { Value = 2 },
+						ProcessAlpha = Input { Value = 0 },
+						Background = Input {
+							SourceOp = "AGIn",
+							Source = "Output",
+						},
+						Foreground = Input {
+							SourceOp = "Strength",
+							Source = "Output",
+						},
+						EffectMask = Input {
+							SourceOp = "AGMask",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 550, 0 } },
+				},
+				Pedestal = BrightnessContrast {
+					Inputs = {
+						Brightness = Input { Value = 0.01 },
+						Input = Input {
+							SourceOp = "Subtract",
+							Source = "Output",
+						},
+						EffectMask = Input {
+							SourceOp = "AGMask",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 660, 0 } },
+				},
+				ShowModel = Dissolve {
+					Transitions = {
+						[0] = "DFTDissolve",
+					},
+					Inputs = {
+						ProcessLayers = Input { Value = FuID { ":All" } },
+						Mix = Input { Value = 0 },
+						Background = Input {
+							SourceOp = "Pedestal",
+							Source = "Output",
+						},
+						Foreground = Input {
+							SourceOp = "ModelUp",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 770, 0 } },
+				},
+			},
+		},
+	},
+	ActiveTool = "AstroGradient",
+}

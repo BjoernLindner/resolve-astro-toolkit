@@ -62,7 +62,22 @@
 					ViewInfo = PipeRouterInfo { Pos = { 0, 0 } },
 				},
 				AGMask = PipeRouter {
-					ViewInfo = PipeRouterInfo { Pos = { 660, -66 } },
+					ViewInfo = PipeRouterInfo { Pos = { 0, -66 } },
+				},
+				ModelWeight = MatteControl {
+					Inputs = {
+						["Garbage.MaskInverted"] = Input { Value = 1 },
+						PostMultiplyImage = Input { Value = 1 },
+						Background = Input {
+							SourceOp = "AGIn",
+							Source = "Output",
+						},
+						["Garbage.Matte"] = Input {
+							SourceOp = "AGMask",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 110, 49.5 } },
 				},
 				ModelDown = Scale {
 					UserControls = ordered() {
@@ -88,34 +103,60 @@
 							Expression = "1/ModelSize",
 						},
 						Input = Input {
-							SourceOp = "AGIn",
+							SourceOp = "ModelWeight",
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 110, 49.5 } },
+					ViewInfo = OperatorInfo { Pos = { 220, 49.5 } },
+				},
+				Normalize = AlphaDivide {
+					Inputs = {
+						Input = Input {
+							SourceOp = "ModelDown",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 330, 49.5 } },
 				},
 				StarFilter = RankFilter {
 					Inputs = {
 						Size = Input { Value = 2 },
 						ProcessAlpha = Input { Value = 0 },
 						Input = Input {
-							SourceOp = "ModelDown",
+							SourceOp = "Normalize",
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 220, 49.5 } },
+					ViewInfo = OperatorInfo { Pos = { 440, 49.5 } },
 				},
-				Smooth = Blur {
+				Reweight = AlphaMultiply {
 					Inputs = {
-						Filter = Input { Value = FuID { "Gaussian" } },
-						XBlurSize = Input { Value = 38 },
-						ProcessAlpha = Input { Value = 0 },
 						Input = Input {
 							SourceOp = "StarFilter",
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 330, 49.5 } },
+					ViewInfo = OperatorInfo { Pos = { 550, 49.5 } },
+				},
+				Smooth = Blur {
+					Inputs = {
+						Filter = Input { Value = FuID { "Gaussian" } },
+						XBlurSize = Input { Value = 38 },
+						Input = Input {
+							SourceOp = "Reweight",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 660, 49.5 } },
+				},
+				ModelNorm = AlphaDivide {
+					Inputs = {
+						Input = Input {
+							SourceOp = "Smooth",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 770, 49.5 } },
 				},
 				ModelUp = BetterResize {
 					Inputs = {
@@ -131,11 +172,11 @@
 							Expression = "AGIn.Output.OriginalHeight",
 						},
 						Input = Input {
-							SourceOp = "Smooth",
+							SourceOp = "ModelNorm",
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 440, 49.5 } },
+					ViewInfo = OperatorInfo { Pos = { 880, 49.5 } },
 				},
 				Strength = BrightnessContrast {
 					Inputs = {
@@ -145,7 +186,7 @@
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 550, 49.5 } },
+					ViewInfo = OperatorInfo { Pos = { 990, 49.5 } },
 				},
 				Subtract = ChannelBoolean {
 					Inputs = {
@@ -164,7 +205,7 @@
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 550, 0 } },
+					ViewInfo = OperatorInfo { Pos = { 990, 0 } },
 				},
 				Pedestal = BrightnessContrast {
 					Inputs = {
@@ -178,7 +219,7 @@
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 660, 0 } },
+					ViewInfo = OperatorInfo { Pos = { 1100, 0 } },
 				},
 				ShowModel = Dissolve {
 					Transitions = {
@@ -196,7 +237,7 @@
 							Source = "Output",
 						},
 					},
-					ViewInfo = OperatorInfo { Pos = { 770, 0 } },
+					ViewInfo = OperatorInfo { Pos = { 1210, 0 } },
 				},
 			},
 		},
